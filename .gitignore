@@ -1,0 +1,33 @@
+# Binary
+bb
+bb.exe
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Config (may contain secrets)
+# Uncomment if you want to ignore local config:
+# config.yaml
+
+# Downloaded specs (can be regenerated)
+spec/swagger.json

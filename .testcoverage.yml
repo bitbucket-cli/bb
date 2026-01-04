@@ -1,0 +1,32 @@
+# Configuration for go-test-coverage
+# Run: go-test-coverage --config .testcoverage.yml
+
+profile: coverage.out
+
+# Exclude generated code from coverage requirements
+exclude:
+  paths:
+    - generated/.*
+
+# Coverage thresholds (base minimums)
+threshold:
+  file: 0      # Per-file handled by overrides
+  package: 0   # Per-package handled by overrides
+  total: 40    # Core libraries have high coverage
+
+# Thresholds for specific files/packages
+override:
+  # Pure utility functions - 100%
+  - threshold: 100
+    path: ^internal/output/format\.go$
+  - threshold: 100
+    path: ^internal/api/client\.go$
+  # Config - viper.Unmarshal error path untestable
+  - threshold: 95
+    path: ^internal/config/config\.go$
+  # Auth - 95% (remaining: platform-specific, keyring, 5-min timeout)
+  - threshold: 95
+    path: ^internal/auth/
+  # CLI commands - require API mocking and stdin handling
+  - threshold: 10
+    path: ^cmd/bb/

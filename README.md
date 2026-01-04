@@ -1,0 +1,520 @@
+# bb - Bitbucket CLI
+
+A powerful command-line interface for Bitbucket Cloud, enabling you to manage repositories, pull requests, pipelines, and more directly from your terminal.
+
+## Features
+
+- **Authentication**: Secure OAuth authentication with token storage in system keyring
+- **Repositories**: List, view, clone, create, update, fork, and delete repositories
+- **Pull Requests**: Create, view, merge, approve, comment, and diff pull requests
+- **Branches**: Manage branches and branch restrictions
+- **Pipelines**: Trigger, monitor, and view pipeline logs
+- **Issues**: Full issue tracking with comments support
+- **Tags**: Create and manage repository tags
+- **Webhooks**: Configure repository webhooks
+- **Deployments**: Manage deployment environments
+- **Workspaces**: View workspace info, members, and projects
+- **Interactive Mode**: Select resources interactively with `-i` flag
+- **Multiple Output Formats**: Table and JSON output support
+- **Shell Completions**: Bash, Zsh, Fish, and PowerShell
+
+## Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/tom/bb.git
+cd bb
+
+# Build
+go build -o bb ./cmd/bb
+
+# Install to PATH
+sudo mv bb /usr/local/bin/
+```
+
+### Prerequisites
+
+- Go 1.21 or later
+- A Bitbucket Cloud account
+- OAuth consumer credentials (see [Authentication](#authentication))
+
+## Quick Start
+
+```bash
+# Login to Bitbucket
+bb auth login
+
+# List your repositories
+bb repo list myworkspace
+
+# View open pull requests
+bb pr list myworkspace/myrepo
+
+# Create a pull request
+bb pr create myworkspace/myrepo -t "My feature" -s feature-branch
+
+# Trigger a pipeline
+bb pipeline trigger myworkspace/myrepo -b main
+```
+
+## Authentication
+
+### Setting Up OAuth
+
+1. Go to Bitbucket Settings > OAuth consumers
+2. Create a new consumer with these permissions:
+   - Account: Read
+   - Repositories: Read, Write
+   - Pull requests: Read, Write
+   - Pipelines: Read, Write
+3. Note your Client ID and Client Secret
+
+### Login
+
+```bash
+# Interactive login (opens browser)
+bb auth login
+
+# With credentials
+bb auth login --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
+
+# Using environment variables
+export BB_CLIENT_ID=your_client_id
+export BB_CLIENT_SECRET=your_client_secret
+bb auth login
+```
+
+### Check Authentication Status
+
+```bash
+bb auth status
+```
+
+### Logout
+
+```bash
+bb auth logout
+```
+
+## Commands
+
+### Repositories
+
+```bash
+# List repositories in a workspace
+bb repo list myworkspace
+
+# View repository details
+bb repo view myworkspace/myrepo
+
+# Clone a repository
+bb repo clone myworkspace/myrepo
+
+# Create a new repository
+bb repo create myworkspace/myrepo --description "My new repo" --private
+
+# Update repository settings
+bb repo update myworkspace/myrepo --description "Updated description"
+
+# Fork a repository
+bb repo fork myworkspace/myrepo --target-workspace myworkspace --name myrepo-fork
+
+# Delete a repository
+bb repo delete myworkspace/myrepo
+
+# Manage default reviewers
+bb repo reviewers list myworkspace/myrepo
+bb repo reviewers add myworkspace/myrepo --user johndoe
+bb repo reviewers remove myworkspace/myrepo --user johndoe
+```
+
+### Pull Requests
+
+```bash
+# List pull requests
+bb pr list myworkspace/myrepo
+bb pr list myworkspace/myrepo --state MERGED
+
+# View PR details
+bb pr view myworkspace/myrepo 123
+
+# Interactive PR selection
+bb pr view myworkspace/myrepo -i
+
+# Create a pull request
+bb pr create myworkspace/myrepo \
+  --title "Add new feature" \
+  --source feature-branch \
+  --dest main \
+  --body "Description of changes" \
+  --reviewer johndoe
+
+# Merge a pull request
+bb pr merge myworkspace/myrepo 123
+
+# Approve a pull request
+bb pr approve myworkspace/myrepo 123
+
+# View PR diff
+bb pr diff myworkspace/myrepo 123
+
+# List comments
+bb pr comments myworkspace/myrepo 123
+
+# Add a comment
+bb pr comment myworkspace/myrepo 123 --body "Looks good!"
+```
+
+### Branches
+
+```bash
+# List branches
+bb branch list myworkspace/myrepo
+
+# View branch details
+bb branch view myworkspace/myrepo main
+
+# Create a branch
+bb branch create myworkspace/myrepo feature-branch --target main
+
+# Delete a branch
+bb branch delete myworkspace/myrepo feature-branch
+
+# Branch restrictions
+bb branch restriction list myworkspace/myrepo
+bb branch restriction create myworkspace/myrepo \
+  --kind push \
+  --pattern "main" \
+  --value 2
+bb branch restriction view myworkspace/myrepo 12345
+bb branch restriction delete myworkspace/myrepo 12345
+```
+
+### Pipelines
+
+```bash
+# List pipelines
+bb pipeline list myworkspace/myrepo
+
+# View pipeline details
+bb pipeline view myworkspace/myrepo 123
+
+# Trigger a pipeline
+bb pipeline trigger myworkspace/myrepo --branch main
+bb pipeline trigger myworkspace/myrepo --tag v1.0.0
+bb pipeline trigger myworkspace/myrepo --commit abc123
+
+# Stop a running pipeline
+bb pipeline stop myworkspace/myrepo 123
+
+# View pipeline steps
+bb pipeline steps myworkspace/myrepo 123
+
+# View step logs
+bb pipeline logs myworkspace/myrepo 123 --step step-uuid
+```
+
+### Issues
+
+```bash
+# List issues
+bb issue list myworkspace/myrepo
+bb issue list myworkspace/myrepo --state open
+
+# View issue details
+bb issue view myworkspace/myrepo 42
+
+# Create an issue
+bb issue create myworkspace/myrepo \
+  --title "Bug report" \
+  --content "Description of the bug" \
+  --priority major \
+  --kind bug
+
+# Update an issue
+bb issue update myworkspace/myrepo 42 --state resolved
+
+# Delete an issue
+bb issue delete myworkspace/myrepo 42
+
+# Comments
+bb issue comments myworkspace/myrepo 42
+bb issue comment myworkspace/myrepo 42 --body "Working on this"
+```
+
+### Tags
+
+```bash
+# List tags
+bb tag list myworkspace/myrepo
+
+# View tag details
+bb tag view myworkspace/myrepo v1.0.0
+
+# Create a tag
+bb tag create myworkspace/myrepo v1.0.0 --target main
+
+# Delete a tag
+bb tag delete myworkspace/myrepo v1.0.0
+```
+
+### Webhooks
+
+```bash
+# List webhooks
+bb webhook list myworkspace/myrepo
+
+# View webhook details
+bb webhook view myworkspace/myrepo webhook-uuid
+
+# Create a webhook
+bb webhook create myworkspace/myrepo \
+  --url https://example.com/webhook \
+  --events repo:push,pullrequest:created \
+  --description "CI webhook" \
+  --secret mysecret
+
+# Delete a webhook
+bb webhook delete myworkspace/myrepo webhook-uuid
+```
+
+### Deployments
+
+```bash
+# List deployments
+bb deploy list myworkspace/myrepo
+
+# Manage environments
+bb deploy env list myworkspace/myrepo
+bb deploy env create myworkspace/myrepo \
+  --name production \
+  --type Production
+bb deploy env delete myworkspace/myrepo env-uuid
+```
+
+### Workspaces
+
+```bash
+# List workspaces
+bb workspace list
+
+# View workspace details
+bb workspace view myworkspace
+
+# List workspace members
+bb workspace members myworkspace
+
+# List workspace projects
+bb workspace projects myworkspace
+```
+
+### Configuration
+
+```bash
+# List all settings
+bb config list
+
+# Get a setting
+bb config get workspace
+
+# Set a setting
+bb config set workspace myworkspace
+bb config set output_format json
+
+# Show config file path
+bb config path
+```
+
+Available settings:
+- `workspace` - Default workspace for commands
+- `output_format` - Default output format (table, json)
+- `client_id` - OAuth client ID
+- `client_secret` - OAuth client secret
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `BB_WORKSPACE` | Default workspace |
+| `BB_CLIENT_ID` | OAuth client ID |
+| `BB_CLIENT_SECRET` | OAuth client secret |
+
+Environment variables take precedence over config file values.
+
+## Output Formats
+
+### Table Output (Default)
+
+```bash
+bb repo list myworkspace
+```
+
+### JSON Output
+
+```bash
+bb repo list myworkspace --json
+```
+
+## Interactive Mode
+
+Use the `-i` flag to interactively select resources:
+
+```bash
+# Select a PR to view
+bb pr view myworkspace/myrepo -i
+
+# Select a PR to merge
+bb pr merge myworkspace/myrepo -i
+
+# Select a PR to approve
+bb pr approve myworkspace/myrepo -i
+```
+
+## Shell Completions
+
+### Bash
+
+```bash
+# Add to ~/.bashrc
+source <(bb completion bash)
+
+# Or install system-wide
+bb completion bash > /etc/bash_completion.d/bb
+```
+
+### Zsh
+
+```bash
+# Add to ~/.zshrc
+echo "autoload -U compinit; compinit" >> ~/.zshrc
+
+# Generate completion
+bb completion zsh > "${fpath[1]}/_bb"
+```
+
+### Fish
+
+```bash
+bb completion fish > ~/.config/fish/completions/bb.fish
+```
+
+### PowerShell
+
+```powershell
+bb completion powershell | Out-String | Invoke-Expression
+```
+
+## Configuration File
+
+Configuration is stored in `~/.config/bb/config.yaml`:
+
+```yaml
+workspace: myworkspace
+output_format: table
+client_id: your_client_id
+client_secret: your_client_secret
+```
+
+## Examples
+
+### Daily Workflow
+
+```bash
+# Check your open PRs
+bb pr list myworkspace/myrepo --state OPEN
+
+# Review and approve a PR
+bb pr view myworkspace/myrepo 123
+bb pr diff myworkspace/myrepo 123
+bb pr approve myworkspace/myrepo 123
+
+# Merge after approval
+bb pr merge myworkspace/myrepo 123
+```
+
+### CI/CD Integration
+
+```bash
+# Trigger pipeline on main branch
+bb pipeline trigger myworkspace/myrepo --branch main
+
+# Wait and check status
+bb pipeline list myworkspace/myrepo | head -5
+
+# View logs if failed
+bb pipeline logs myworkspace/myrepo 123 --step build-step-uuid
+```
+
+### Create Release
+
+```bash
+# Create a tag for the release
+bb tag create myworkspace/myrepo v1.0.0 --target main
+
+# Trigger deployment pipeline
+bb pipeline trigger myworkspace/myrepo --tag v1.0.0
+```
+
+## Troubleshooting
+
+### Authentication Issues
+
+```bash
+# Check current auth status
+bb auth status
+
+# Re-authenticate
+bb auth logout
+bb auth login
+```
+
+### API Errors
+
+Use `--json` flag for detailed error responses:
+
+```bash
+bb pr create myworkspace/myrepo -t "Test" -s branch --json
+```
+
+### Debug Mode
+
+Set verbose output for debugging:
+
+```bash
+BB_DEBUG=1 bb repo list myworkspace
+```
+
+## Contributing
+
+Contributions are welcome! Please see [ROADMAP.md](ROADMAP.md) for planned features.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Running Tests
+
+```bash
+go test ./... -cover
+```
+
+### Building
+
+```bash
+go build -o bb ./cmd/bb
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+- Built with [Cobra](https://github.com/spf13/cobra) for CLI framework
+- Uses [Viper](https://github.com/spf13/viper) for configuration
+- Interactive prompts powered by [promptui](https://github.com/manifoldco/promptui)
+- API client generated from Bitbucket OpenAPI specification
