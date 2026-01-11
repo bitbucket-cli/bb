@@ -1,6 +1,7 @@
 # Binary
 /bb
 bb.exe
+bin/
 
 # Go build artifacts
 *.exe
