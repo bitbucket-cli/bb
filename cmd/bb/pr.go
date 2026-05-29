@@ -12,6 +12,7 @@ import (
 	"github.com/tom/bb/internal/api"
 	"github.com/tom/bb/internal/interactive"
 	"github.com/tom/bb/internal/output"
+	bbpr "github.com/tom/bb/pkg/pr"
 )
 
 var (
@@ -145,83 +146,39 @@ func init() {
 }
 
 func runPRList(cmd *cobra.Command, args []string) error {
-	client, err := prNewAPIClient()
-	if err != nil {
-		return err
-	}
-
 	repoCtx, err := api.ParseRepoContext(args[0])
 	if err != nil {
 		return err
 	}
 
-	state := bitbucket.GetRepositoriesWorkspaceRepoSlugPullrequestsParamsState(prState)
-	params := &bitbucket.GetRepositoriesWorkspaceRepoSlugPullrequestsParams{
-		State: &state,
-	}
-
-	resp, err := client.GetRepositoriesWorkspaceRepoSlugPullrequests(
-		context.Background(),
-		repoCtx.Workspace,
-		repoCtx.RepoSlug,
-		params,
-	)
+	prs, err := bbpr.List(cmd.Context(), repoCtx.Workspace, repoCtx.RepoSlug, prState)
 	if err != nil {
-		return fmt.Errorf("failed to list pull requests: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("API error: %s", resp.Status)
+		return err
 	}
 
-	var result bitbucket.PaginatedPullrequests
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	if result.Values == nil || len(*result.Values) == 0 {
+	if len(prs) == 0 {
 		output.Info("No pull requests found")
 		return nil
 	}
 
-	headers := []string{"#", "TITLE", "AUTHOR", "SOURCE", "STATE"}
+	headers := []string{"#", "TITLE", "AUTHOR", "BRANCH", "STATE"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, pr := range *result.Values {
-		id := ""
-		if pr.Id != nil {
-			id = strconv.Itoa(*pr.Id)
-		}
-
-		title := ""
-		if pr.Title != nil {
-			title = output.Truncate(*pr.Title, 50)
-		}
-
-		author := ""
-		if pr.Author != nil && pr.Author.DisplayName != nil {
-			author = *pr.Author.DisplayName
-		}
-
-		source := ""
-		if pr.Source != nil && pr.Source.Branch != nil && pr.Source.Branch.Name != nil {
-			source = *pr.Source.Branch.Name
-		}
-
-		state := ""
-		if pr.State != nil {
-			state = string(*pr.State)
-		}
-
-		rows = append(rows, []string{id, title, author, source, state})
+	for _, pr := range prs {
+		rows = append(rows, []string{
+			strconv.Itoa(pr.ID),
+			output.Truncate(pr.Title, 50),
+			pr.Author,
+			pr.Branch,
+			pr.State,
+		})
 		jsonData = append(jsonData, map[string]interface{}{
-			"id":     pr.Id,
+			"id":     pr.ID,
 			"title":  pr.Title,
-			"author": author,
-			"source": source,
-			"state":  state,
+			"author": pr.Author,
+			"branch": pr.Branch,
+			"state":  pr.State,
 		})
 	}
 
