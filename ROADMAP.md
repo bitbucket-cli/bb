@@ -128,9 +128,9 @@ These must be resolved before a public release. See `review.md` for full details
 - [ ] API documentation
 
 ### Build and Distribution
-- [ ] GitHub Actions CI/CD pipeline
-- [ ] Cross-platform binaries (Linux, macOS, Windows)
-- [ ] Homebrew formula
+- [x] GitHub Actions CI/CD pipeline (ci.yml + release.yml + .goreleaser.yaml)
+- [x] Cross-platform binaries (Linux, macOS, Windows) — goreleaser builds amd64+arm64
+- [x] Homebrew formula — goreleaser publishes to ThomasRedstone/homebrew-tap
 - [ ] APT/RPM packages
 - [ ] Scoop manifest for Windows
 
