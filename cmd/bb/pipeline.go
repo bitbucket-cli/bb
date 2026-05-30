@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,13 +8,14 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
 	pipelineBranch string
+	pipelineLimit  int
 )
 
 // Mockable dependencies for testing
@@ -79,6 +79,7 @@ var pipelineLogsCmd = &cobra.Command{
 }
 
 func init() {
+	pipelineListCmd.Flags().IntVarP(&pipelineLimit, "limit", "l", 25, "Maximum number of pipelines to show (0 = all)")
 	pipelineTriggerCmd.Flags().StringVarP(&pipelineBranch, "branch", "b", "", "Branch to run pipeline on (required)")
 	pipelineTriggerCmd.MarkFlagRequired("branch")
 
@@ -91,6 +92,8 @@ func init() {
 }
 
 func runPipelineList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := pipelineNewAPIClient()
 	if err != nil {
 		return err
@@ -104,7 +107,7 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 	params := &bitbucket.GetPipelinesForRepositoryParams{}
 
 	resp, err := client.GetPipelinesForRepository(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		params,
@@ -123,7 +126,35 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if result.Values == nil || len(*result.Values) == 0 {
+	// Collect pipelines, following pagination up to the requested limit.
+	allPipelines := make([]bitbucket.Pipeline, 0)
+	if result.Values != nil {
+		allPipelines = append(allPipelines, *result.Values...)
+	}
+	for result.Next != nil && *result.Next != "" {
+		if pipelineLimit > 0 && len(allPipelines) >= pipelineLimit {
+			break
+		}
+		nextResp, err := client.GetURL(ctx, *result.Next)
+		if err != nil {
+			return fmt.Errorf("failed to fetch next page: %w", err)
+		}
+		result = bitbucket.PaginatedPipelines{}
+		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
+			nextResp.Body.Close()
+			return fmt.Errorf("failed to parse response: %w", err)
+		}
+		nextResp.Body.Close()
+		if result.Values != nil {
+			allPipelines = append(allPipelines, *result.Values...)
+		}
+	}
+
+	if pipelineLimit > 0 && len(allPipelines) > pipelineLimit {
+		allPipelines = allPipelines[:pipelineLimit]
+	}
+
+	if len(allPipelines) == 0 {
 		output.Info("No pipelines found")
 		return nil
 	}
@@ -132,7 +163,7 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, pipeline := range *result.Values {
+	for _, pipeline := range allPipelines {
 		buildNum := ""
 		if pipeline.BuildNumber != nil {
 			buildNum = strconv.Itoa(*pipeline.BuildNumber)
@@ -166,6 +197,8 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 }
 
 func runPipelineView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := pipelineNewAPIClient()
 	if err != nil {
 		return err
@@ -183,7 +216,7 @@ func runPipelineView(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetPipelineForRepository(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		pipelineUUID,
@@ -243,6 +276,8 @@ func runPipelineView(cmd *cobra.Command, args []string) error {
 }
 
 func runPipelineTrigger(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := pipelineNewAPIClient()
 	if err != nil {
 		return err
@@ -268,7 +303,7 @@ func runPipelineTrigger(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.CreatePipelineForRepositoryWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		"application/json",
@@ -305,6 +340,8 @@ func runPipelineTrigger(cmd *cobra.Command, args []string) error {
 }
 
 func runPipelineStop(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := pipelineNewAPIClient()
 	if err != nil {
 		return err
@@ -322,7 +359,7 @@ func runPipelineStop(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.StopPipeline(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		pipelineUUID,
@@ -401,6 +438,8 @@ func formatDuration(seconds int) string {
 }
 
 func runPipelineSteps(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := pipelineNewAPIClient()
 	if err != nil {
 		return err
@@ -417,7 +456,7 @@ func runPipelineSteps(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetPipelineStepsForRepository(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		pipelineUUID,
@@ -492,6 +531,8 @@ func runPipelineSteps(cmd *cobra.Command, args []string) error {
 }
 
 func runPipelineLogs(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := pipelineNewAPIClient()
 	if err != nil {
 		return err
@@ -513,7 +554,7 @@ func runPipelineLogs(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetPipelineStepLogForRepository(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		pipelineUUID,

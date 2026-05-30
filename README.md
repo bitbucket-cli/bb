@@ -66,7 +66,7 @@ bb pipeline trigger myworkspace/myrepo -b main
 1. Go to Bitbucket Settings > OAuth consumers
 2. Create a new consumer with these permissions:
    - Account: Read
-   - Repositories: Read, Write
+   - Repositories: Read, Write, Admin
    - Pull requests: Read, Write
    - Pipelines: Read, Write
 3. Note your Client ID and Client Secret
@@ -74,13 +74,13 @@ bb pipeline trigger myworkspace/myrepo -b main
 ### Login
 
 ```bash
-# Interactive login (opens browser)
+# Interactive login (opens browser, prompts for credentials if not configured)
 bb auth login
 
-# With credentials
+# Pass credentials directly (note: visible in shell history — prefer env vars)
 bb auth login --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 
-# Using environment variables
+# Using environment variables (recommended)
 export BB_CLIENT_ID=your_client_id
 export BB_CLIENT_SECRET=your_client_secret
 bb auth login
@@ -417,6 +417,11 @@ client_id: your_client_id
 client_secret: your_client_secret
 ```
 
+> **Security note:** `client_secret` is stored in plaintext in the config file. For better
+> security, use `bb auth login` (which stores OAuth tokens in the system keyring) and supply
+> credentials via `BB_CLIENT_ID` / `BB_CLIENT_SECRET` environment variables rather than
+> writing them to the config file.
+
 ## Examples
 
 ### Daily Workflow
@@ -476,14 +481,6 @@ Use `--json` flag for detailed error responses:
 
 ```bash
 bb pr create myworkspace/myrepo -t "Test" -s branch --json
-```
-
-### Debug Mode
-
-Set verbose output for debugging:
-
-```bash
-BB_DEBUG=1 bb repo list myworkspace
 ```
 
 ## Contributing

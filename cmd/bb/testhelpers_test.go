@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
 )
 
 // mockAPIClientFactory creates a mock API client pointing to the test server

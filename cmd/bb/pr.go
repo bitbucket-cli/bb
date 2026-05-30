@@ -8,22 +8,21 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/interactive"
-	"github.com/tom/bb/internal/output"
-	bbpr "github.com/tom/bb/pkg/pr"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/interactive"
+	"github.com/ThomasRedstone/bb/internal/output"
+	bbpr "github.com/ThomasRedstone/bb/pkg/pr"
 )
 
 var (
-	prState       string
-	prTitle       string
-	prBody        string
-	prSource      string
-	prDest        string
-	prReviewers   []string
-	prComment     string
-	prInteractive bool
+	prState     string
+	prTitle     string
+	prBody      string
+	prSource    string
+	prDest      string
+	prReviewers []string
+	prComment   string
 )
 
 // Mockable dependencies for testing
@@ -128,12 +127,12 @@ func init() {
 	prCommentCmd.MarkFlagRequired("body")
 
 	// Add interactive flag to commands that support it
-	prViewCmd.Flags().BoolVarP(&prInteractive, "interactive", "i", false, "Select PR interactively")
-	prMergeCmd.Flags().BoolVarP(&prInteractive, "interactive", "i", false, "Select PR interactively")
-	prApproveCmd.Flags().BoolVarP(&prInteractive, "interactive", "i", false, "Select PR interactively")
-	prCommentsCmd.Flags().BoolVarP(&prInteractive, "interactive", "i", false, "Select PR interactively")
-	prCommentCmd.Flags().BoolVarP(&prInteractive, "interactive", "i", false, "Select PR interactively")
-	prDiffCmd.Flags().BoolVarP(&prInteractive, "interactive", "i", false, "Select PR interactively")
+	prViewCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
+	prMergeCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
+	prApproveCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
+	prCommentsCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
+	prCommentCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
+	prDiffCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 
 	prCmd.AddCommand(prListCmd)
 	prCmd.AddCommand(prViewCmd)
@@ -151,7 +150,7 @@ func runPRList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := cmd.Context()
+	ctx := cmdCtx(cmd)
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -191,6 +190,8 @@ func runPRList(cmd *cobra.Command, args []string) error {
 }
 
 func runPRView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := prNewAPIClient()
 	if err != nil {
 		return err
@@ -201,13 +202,14 @@ func runPRView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	prID, err := getPRID(args, client, repoCtx)
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugPullrequestsPullRequestId(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		prID,
@@ -286,6 +288,8 @@ func runPRView(cmd *cobra.Command, args []string) error {
 }
 
 func runPRCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := prNewAPIClient()
 	if err != nil {
 		return err
@@ -299,7 +303,7 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 	// If destination not specified, we need to get the repo to find the main branch
 	destBranch := prDest
 	if destBranch == "" {
-		resp, err := client.GetRepositoriesWorkspaceRepoSlug(context.Background(), repoCtx.Workspace, repoCtx.RepoSlug)
+		resp, err := client.GetRepositoriesWorkspaceRepoSlug(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
 		if err != nil {
 			return fmt.Errorf("failed to get repository info: %w", err)
 		}
@@ -353,7 +357,7 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		"application/json",
@@ -394,6 +398,8 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runPRMerge(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := prNewAPIClient()
 	if err != nil {
 		return err
@@ -404,14 +410,15 @@ func runPRMerge(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	prID, err := getPRID(args, client, repoCtx)
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
 
 	// Use nil params and empty body for default merge behavior
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMerge(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		prID,
@@ -434,6 +441,8 @@ func runPRMerge(cmd *cobra.Command, args []string) error {
 }
 
 func runPRApprove(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := prNewAPIClient()
 	if err != nil {
 		return err
@@ -444,13 +453,14 @@ func runPRApprove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	prID, err := getPRID(args, client, repoCtx)
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdApprove(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		prID,
@@ -490,6 +500,8 @@ func (r *bytesReaderImpl) Read(p []byte) (n int, err error) {
 }
 
 func runPRComments(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := prNewAPIClient()
 	if err != nil {
 		return err
@@ -500,13 +512,14 @@ func runPRComments(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	prID, err := getPRID(args, client, repoCtx)
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdComments(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		prID,
@@ -579,6 +592,8 @@ func runPRComments(cmd *cobra.Command, args []string) error {
 }
 
 func runPRComment(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := prNewAPIClient()
 	if err != nil {
 		return err
@@ -589,7 +604,8 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	prID, err := getPRID(args, client, repoCtx)
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -606,7 +622,7 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdCommentsWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		prID,
@@ -629,6 +645,8 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 }
 
 func runPRDiff(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := prNewAPIClient()
 	if err != nil {
 		return err
@@ -639,13 +657,14 @@ func runPRDiff(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	prID, err := getPRID(args, client, repoCtx)
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdDiff(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		prID,
@@ -670,14 +689,14 @@ func runPRDiff(cmd *cobra.Command, args []string) error {
 }
 
 // selectPRInteractively fetches PRs and prompts the user to select one
-func selectPRInteractively(client *api.Client, workspace, repoSlug string) (int, error) {
+func selectPRInteractively(ctx context.Context, client *api.Client, workspace, repoSlug string) (int, error) {
 	state := bitbucket.GetRepositoriesWorkspaceRepoSlugPullrequestsParamsState("OPEN")
 	params := &bitbucket.GetRepositoriesWorkspaceRepoSlugPullrequestsParams{
 		State: &state,
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugPullrequests(
-		context.Background(),
+		ctx,
 		workspace,
 		repoSlug,
 		params,
@@ -735,7 +754,7 @@ func selectPRInteractively(client *api.Client, workspace, repoSlug string) (int,
 }
 
 // getPRID gets PR ID from args or interactive selection
-func getPRID(args []string, client *api.Client, repoCtx *api.RepoContext) (int, error) {
+func getPRID(ctx context.Context, args []string, client *api.Client, repoCtx *api.RepoContext, interactive bool) (int, error) {
 	if len(args) >= 2 {
 		prID, err := strconv.Atoi(args[1])
 		if err != nil {
@@ -745,9 +764,9 @@ func getPRID(args []string, client *api.Client, repoCtx *api.RepoContext) (int, 
 	}
 
 	// Interactive mode
-	if !prInteractive {
+	if !interactive {
 		return 0, fmt.Errorf("PR number required (use -i for interactive selection)")
 	}
 
-	return selectPRInteractively(client, repoCtx.Workspace, repoCtx.RepoSlug)
+	return selectPRInteractively(ctx, client, repoCtx.Workspace, repoCtx.RepoSlug)
 }

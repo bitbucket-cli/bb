@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
@@ -55,57 +56,73 @@ func Print(headers []string, rows [][]string, jsonData interface{}) error {
 	if CurrentFormat == FormatJSON {
 		return JSON(jsonData)
 	}
-
-	// For large result sets, use simple tab-separated output (faster)
-	if len(rows) > 50 {
-		return PrintSimple(headers, rows)
-	}
-
 	table := Table(headers)
 	table.AppendBulk(rows)
 	table.Render()
 	return nil
 }
 
-// PrintSimple prints rows in a simple tab-separated format (fast for large datasets)
+// PrintSimple prints rows in a simple tab-separated format
 func PrintSimple(headers []string, rows [][]string) error {
-	// Print header
 	fmt.Println(strings.Join(headers, "\t"))
-
-	// Print rows
 	for _, row := range rows {
 		fmt.Println(strings.Join(row, "\t"))
 	}
 	return nil
 }
 
-// PrintSingle prints a single item's details
+// PrintSingle prints a single item's details in a key:value layout.
+// Keys are sorted alphabetically for deterministic output.
 func PrintSingle(fields map[string]string, jsonData interface{}) error {
 	if CurrentFormat == FormatJSON {
 		return JSON(jsonData)
 	}
 
-	maxKeyLen := 0
+	keys := make([]string, 0, len(fields))
 	for key := range fields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	maxKeyLen := 0
+	for _, key := range keys {
 		if len(key) > maxKeyLen {
 			maxKeyLen = len(key)
 		}
 	}
 
-	for key, value := range fields {
-		fmt.Printf("%-*s  %s\n", maxKeyLen, key+":", value)
+	for _, key := range keys {
+		fmt.Printf("%-*s  %s\n", maxKeyLen, key+":", fields[key])
 	}
 	return nil
 }
 
+// isTerminal reports whether stdout is connected to a terminal.
+var isTerminal = func() bool {
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+// symbol returns a plain ASCII fallback when stdout is not a terminal
+// (e.g. Windows cmd.exe, CI pipelines, redirected output).
+func symbol(unicode, ascii string) string {
+	if isTerminal() {
+		return unicode
+	}
+	return ascii
+}
+
 // Success prints a success message
 func Success(format string, args ...interface{}) {
-	fmt.Printf("✓ "+format+"\n", args...)
+	fmt.Printf(symbol("✓", "OK")+" "+format+"\n", args...)
 }
 
 // Error prints an error message
 func Error(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "✗ "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, symbol("✗", "ERROR")+" "+format+"\n", args...)
 }
 
 // Info prints an info message

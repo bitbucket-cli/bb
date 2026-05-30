@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tom/bb/internal/config"
+	"github.com/ThomasRedstone/bb/internal/config"
 )
 
 // GetAPIToken returns the BITBUCKET_API_TOKEN if set

@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
@@ -85,6 +85,8 @@ func init() {
 }
 
 func runDeployList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := deployNewAPIClient()
 	if err != nil {
 		return err
@@ -96,7 +98,7 @@ func runDeployList(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetDeploymentsForRepository(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 	)
@@ -177,6 +179,8 @@ func runDeployList(cmd *cobra.Command, args []string) error {
 }
 
 func runDeployEnvList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := deployNewAPIClient()
 	if err != nil {
 		return err
@@ -188,7 +192,7 @@ func runDeployEnvList(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetEnvironmentsForRepository(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 	)
@@ -246,6 +250,8 @@ func runDeployEnvList(cmd *cobra.Command, args []string) error {
 }
 
 func runDeployEnvCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := deployNewAPIClient()
 	if err != nil {
 		return err
@@ -278,7 +284,7 @@ func runDeployEnvCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.CreateEnvironmentWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		"application/json",
@@ -308,6 +314,8 @@ func runDeployEnvCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runDeployEnvDelete(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := deployNewAPIClient()
 	if err != nil {
 		return err
@@ -321,7 +329,7 @@ func runDeployEnvDelete(cmd *cobra.Command, args []string) error {
 	envUUID := args[1]
 
 	resp, err := client.DeleteEnvironmentForRepository(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		envUUID,

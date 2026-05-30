@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/internal/config"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/internal/config"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
@@ -54,6 +55,15 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 	rootCmd.AddCommand(workspaceCmd)
 	rootCmd.AddCommand(configCmd)
+}
+
+// cmdCtx returns the command's context, falling back to context.Background()
+// when the command was not started via Execute() (e.g. in tests).
+func cmdCtx(cmd *cobra.Command) context.Context {
+	if ctx := cmd.Context(); ctx != nil {
+		return ctx
+	}
+	return context.Background()
 }
 
 func main() {

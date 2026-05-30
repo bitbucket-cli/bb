@@ -9,9 +9,9 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
@@ -133,6 +133,8 @@ func init() {
 }
 
 func runBranchList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := branchNewAPIClient()
 	if err != nil {
 		return err
@@ -146,7 +148,7 @@ func runBranchList(cmd *cobra.Command, args []string) error {
 	params := &bitbucket.GetRepositoriesWorkspaceRepoSlugRefsBranchesParams{}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugRefsBranches(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		params,
@@ -165,7 +167,28 @@ func runBranchList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if result.Values == nil || len(*result.Values) == 0 {
+	// Collect all branches across pages.
+	allBranches := make([]bitbucket.Branch, 0)
+	if result.Values != nil {
+		allBranches = append(allBranches, *result.Values...)
+	}
+	for result.Next != nil && *result.Next != "" {
+		nextResp, err := client.GetURL(ctx, *result.Next)
+		if err != nil {
+			return fmt.Errorf("failed to fetch next page: %w", err)
+		}
+		result = bitbucket.PaginatedBranches{}
+		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
+			nextResp.Body.Close()
+			return fmt.Errorf("failed to parse response: %w", err)
+		}
+		nextResp.Body.Close()
+		if result.Values != nil {
+			allBranches = append(allBranches, *result.Values...)
+		}
+	}
+
+	if len(allBranches) == 0 {
 		output.Info("No branches found")
 		return nil
 	}
@@ -174,7 +197,7 @@ func runBranchList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, branch := range *result.Values {
+	for _, branch := range allBranches {
 		name := ""
 		if branch.Name != nil {
 			name = *branch.Name
@@ -184,7 +207,8 @@ func runBranchList(cmd *cobra.Command, args []string) error {
 		message := ""
 		if branch.Target != nil {
 			if branch.Target.Hash != nil {
-				commit = (*branch.Target.Hash)[:12] // Short hash
+				h := *branch.Target.Hash
+				commit = h[:min(12, len(h))]
 			}
 			if branch.Target.Message != nil {
 				message = output.Truncate(*branch.Target.Message, 50)
@@ -202,6 +226,8 @@ func runBranchList(cmd *cobra.Command, args []string) error {
 }
 
 func runBranchCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := branchNewAPIClient()
 	if err != nil {
 		return err
@@ -218,7 +244,7 @@ func runBranchCreate(cmd *cobra.Command, args []string) error {
 	sourceBranch := branchFrom
 	if sourceBranch == "" {
 		// Get repo to find main branch
-		resp, err := client.GetRepositoriesWorkspaceRepoSlug(context.Background(), repoCtx.Workspace, repoCtx.RepoSlug)
+		resp, err := client.GetRepositoriesWorkspaceRepoSlug(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
 		if err != nil {
 			return fmt.Errorf("failed to get repository info: %w", err)
 		}
@@ -238,7 +264,7 @@ func runBranchCreate(cmd *cobra.Command, args []string) error {
 
 	// Get the commit hash for the source branch
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugRefsBranchesName(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		sourceBranch,
@@ -283,7 +309,7 @@ func runBranchCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	createResp, err := client.PostRepositoriesWorkspaceRepoSlugRefsBranches(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		withBody,
@@ -304,6 +330,8 @@ func runBranchCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runBranchDelete(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := branchNewAPIClient()
 	if err != nil {
 		return err
@@ -317,7 +345,7 @@ func runBranchDelete(cmd *cobra.Command, args []string) error {
 	branchName := args[1]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugRefsBranchesName(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		branchName,
@@ -338,6 +366,8 @@ func runBranchDelete(cmd *cobra.Command, args []string) error {
 }
 
 func runBranchRestrictList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := branchNewAPIClient()
 	if err != nil {
 		return err
@@ -349,7 +379,7 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugBranchRestrictions(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		nil,
@@ -411,6 +441,8 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 }
 
 func runBranchRestrictCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := branchNewAPIClient()
 	if err != nil {
 		return err
@@ -436,20 +468,12 @@ func runBranchRestrictCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create request body: %w", err)
 	}
 
-	withBody := func(ctx context.Context, req *http.Request) error {
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		req.ContentLength = int64(len(body))
-		req.Header.Set("Content-Type", "application/json")
-		return nil
-	}
-
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugBranchRestrictionsWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		"application/json",
 		bytes.NewReader(body),
-		withBody,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create branch restriction: %w", err)
@@ -474,6 +498,8 @@ func runBranchRestrictCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runBranchRestrictDelete(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := branchNewAPIClient()
 	if err != nil {
 		return err
@@ -487,7 +513,7 @@ func runBranchRestrictDelete(cmd *cobra.Command, args []string) error {
 	restrictionID := args[1]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugBranchRestrictionsId(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		restrictionID,
@@ -508,6 +534,8 @@ func runBranchRestrictDelete(cmd *cobra.Command, args []string) error {
 }
 
 func runBranchRestrictView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := branchNewAPIClient()
 	if err != nil {
 		return err
@@ -521,7 +549,7 @@ func runBranchRestrictView(cmd *cobra.Command, args []string) error {
 	restrictionID := args[1]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugBranchRestrictionsId(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		restrictionID,

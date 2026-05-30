@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/internal/auth"
-	"github.com/tom/bb/internal/config"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/internal/auth"
+	"github.com/ThomasRedstone/bb/internal/config"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 // Mockable dependencies for testing
@@ -22,7 +22,13 @@ var (
 	authLogout             = auth.Logout
 	authGetStatus          = auth.GetStatus
 	authSetClientCreds     = config.SetClientCredentials
+	authHasStoredTokens    = auth.HasStoredTokens
 	authStdinReader    io.Reader = os.Stdin
+)
+
+var (
+	authFlagClientID     string
+	authFlagClientSecret string
 )
 
 var authCmd = &cobra.Command{
@@ -62,14 +68,23 @@ var authStatusCmd = &cobra.Command{
 }
 
 func init() {
+	authLoginCmd.Flags().StringVar(&authFlagClientID, "client-id", "", "OAuth client ID (Key) — avoid shell history: prefer BB_CLIENT_ID env var")
+	authLoginCmd.Flags().StringVar(&authFlagClientSecret, "client-secret", "", "OAuth client secret — avoid shell history: prefer BB_CLIENT_SECRET env var")
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authStatusCmd)
 }
 
 func runAuthLogin(cmd *cobra.Command, args []string) error {
-	clientID := authGetClientID()
-	clientSecret := authGetClientSecret()
+	// Flags take precedence, then env/config, then interactive prompt.
+	clientID := authFlagClientID
+	if clientID == "" {
+		clientID = authGetClientID()
+	}
+	clientSecret := authFlagClientSecret
+	if clientSecret == "" {
+		clientSecret = authGetClientSecret()
+	}
 
 	// If credentials not configured, prompt for them
 	if clientID == "" || clientSecret == "" {
@@ -126,12 +141,14 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 }
 
 func runAuthLogout(cmd *cobra.Command, args []string) error {
-	if err := authLogout(); err != nil {
-		// Ignore errors from logout (might not be logged in)
+	if !authHasStoredTokens() {
 		output.Info("Already logged out")
 		return nil
 	}
-
+	if err := authLogout(); err != nil {
+		output.Info("Already logged out")
+		return nil
+	}
 	output.Success("Logged out of Bitbucket")
 	return nil
 }

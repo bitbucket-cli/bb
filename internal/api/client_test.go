@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/auth"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/auth"
 )
 
 // resetMocks restores default function implementations

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
 )
 
 // resetPipelineMocks restores default implementations

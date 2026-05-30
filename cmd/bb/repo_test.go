@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/config"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/config"
 )
 
 // resetRepoMocks restores default implementations
@@ -22,6 +24,16 @@ func resetRepoMocks() {
 	runGitClone = runGitCloneReal
 	getWorkspace = config.GetWorkspace
 	repoAPIBaseURL = "https://api.bitbucket.org/2.0"
+	repoCreateDescription = ""
+	repoCreatePrivate = false
+	repoCreatePublic = false
+	repoCreateProject = ""
+	repoCreateSCM = "git"
+	repoCreateHasIssues = false
+	repoCreateNoIssues = false
+	repoCreateHasWiki = false
+	repoCreateNoWiki = false
+	repoCreateForkPolicy = ""
 }
 
 // TestPaginationTermination verifies that pagination stops correctly
@@ -475,6 +487,10 @@ func TestRepoCommandStructure(t *testing.T) {
 		t.Error("repo view should have RunE")
 	}
 
+	if repoCreateCmd.RunE == nil {
+		t.Error("repo create should have RunE")
+	}
+
 	if repoCloneCmd.RunE == nil {
 		t.Error("repo clone should have RunE")
 	}
@@ -491,7 +507,7 @@ func TestFetchPage(t *testing.T) {
 	bbClient, _ := bitbucket.NewClient(server.URL)
 	client := &api.Client{Client: bbClient}
 
-	resp, err := fetchPage(client, server.URL+"/test")
+	resp, err := fetchPage(context.Background(), client, server.URL+"/test")
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -506,7 +522,7 @@ func TestFetchPage_InvalidURL(t *testing.T) {
 	client := &api.Client{Client: bbClient}
 
 	// Invalid URL with control characters
-	_, err := fetchPage(client, "http://localhost/\x00invalid")
+	_, err := fetchPage(context.Background(), client, "http://localhost/\x00invalid")
 	if err == nil {
 		t.Error("Expected error for invalid URL")
 	}
@@ -970,6 +986,176 @@ func TestRunRepoClone_GitFails(t *testing.T) {
 	err := runRepoClone(repoCloneCmd, []string{"workspace/repo"})
 	if err == nil {
 		t.Error("Expected error when git clone fails")
+	}
+}
+
+// --- Repo Create Tests ---
+
+func resetRepoCreateMocks() {
+	newAPIClient = api.NewClient
+	repoCreateDescription = ""
+	repoCreatePrivate = false
+	repoCreatePublic = false
+	repoCreateProject = ""
+	repoCreateSCM = "git"
+	repoCreateHasIssues = false
+	repoCreateNoIssues = false
+	repoCreateHasWiki = false
+	repoCreateNoWiki = false
+	repoCreateForkPolicy = ""
+}
+
+func TestRepoCreateFlags(t *testing.T) {
+	descFlag := repoCreateCmd.Flags().Lookup("description")
+	if descFlag == nil {
+		t.Error("--description flag not found")
+	}
+
+	projectFlag := repoCreateCmd.Flags().Lookup("project")
+	if projectFlag == nil {
+		t.Error("--project flag not found")
+	}
+
+	scmFlag := repoCreateCmd.Flags().Lookup("scm")
+	if scmFlag == nil {
+		t.Error("--scm flag not found")
+	}
+}
+
+func TestRunRepoCreate_NoClient(t *testing.T) {
+	defer resetRepoCreateMocks()
+
+	newAPIClient = func() (*api.Client, error) {
+		return nil, errors.New("auth required")
+	}
+
+	err := runRepoCreate(repoCreateCmd, []string{"workspace/repo"})
+	if err == nil {
+		t.Error("Expected error when client creation fails")
+	}
+}
+
+func TestRunRepoCreate_InvalidRepo(t *testing.T) {
+	defer resetRepoCreateMocks()
+
+	newAPIClient = func() (*api.Client, error) {
+		return &api.Client{}, nil
+	}
+
+	err := runRepoCreate(repoCreateCmd, []string{"invalid"})
+	if err == nil {
+		t.Error("Expected error for invalid repo format")
+	}
+}
+
+func TestRunRepoCreate_ConflictingVisibilityFlags(t *testing.T) {
+	defer resetRepoCreateMocks()
+
+	newAPIClient = func() (*api.Client, error) {
+		return &api.Client{}, nil
+	}
+	repoCreatePrivate = true
+	repoCreatePublic = true
+
+	err := runRepoCreate(repoCreateCmd, []string{"workspace/repo"})
+	if err == nil {
+		t.Error("Expected error when both --private and --public are set")
+	}
+}
+
+func TestRunRepoCreate_APIError(t *testing.T) {
+	defer resetRepoCreateMocks()
+
+	repoCreateDescription = "My new repo"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "invalid"})
+	}))
+	defer server.Close()
+
+	newAPIClient = mockAPIClientFactory(server)
+
+	err := runRepoCreate(repoCreateCmd, []string{"workspace/myrepo"})
+	if err == nil {
+		t.Error("Expected error on API error")
+	}
+}
+
+func TestRunRepoCreate_Success(t *testing.T) {
+	defer resetRepoCreateMocks()
+
+	repoCreateDescription = "My new repo"
+	repoCreatePrivate = true
+	repoCreateProject = "MARS"
+	repoCreateSCM = "git"
+	repoCreateHasIssues = true
+	repoCreateHasWiki = true
+	repoCreateForkPolicy = "allow_forks"
+
+	var gotPath string
+	var gotMethod string
+	var gotBody map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+
+		if err := json.Unmarshal(body, &gotBody); err != nil {
+			t.Fatalf("failed to parse request body: %v", err)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"full_name": "workspace/myrepo",
+		})
+	}))
+	defer server.Close()
+
+	newAPIClient = mockAPIClientFactory(server)
+
+	err := runRepoCreate(repoCreateCmd, []string{"workspace/myrepo"})
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if gotMethod != http.MethodPost {
+		t.Errorf("Expected POST method, got %s", gotMethod)
+	}
+	if gotPath != "/repositories/workspace/myrepo" {
+		t.Errorf("Expected /repositories/workspace/myrepo path, got %s", gotPath)
+	}
+
+	if gotBody["description"] != "My new repo" {
+		t.Errorf("Expected description in request body, got %v", gotBody["description"])
+	}
+	if gotBody["is_private"] != true {
+		t.Errorf("Expected is_private=true in request body, got %v", gotBody["is_private"])
+	}
+	if gotBody["scm"] != "git" {
+		t.Errorf("Expected scm=git in request body, got %v", gotBody["scm"])
+	}
+	if gotBody["has_issues"] != true {
+		t.Errorf("Expected has_issues=true in request body, got %v", gotBody["has_issues"])
+	}
+	if gotBody["has_wiki"] != true {
+		t.Errorf("Expected has_wiki=true in request body, got %v", gotBody["has_wiki"])
+	}
+	if gotBody["fork_policy"] != "allow_forks" {
+		t.Errorf("Expected fork_policy=allow_forks in request body, got %v", gotBody["fork_policy"])
+	}
+
+	project, ok := gotBody["project"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected project object in request body, got %T", gotBody["project"])
+	}
+	if project["key"] != "MARS" {
+		t.Errorf("Expected project key MARS, got %v", project["key"])
 	}
 }
 

@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 // Mockable dependencies for testing
@@ -63,6 +62,8 @@ func init() {
 }
 
 func runWorkspaceList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := workspaceNewAPIClient()
 	if err != nil {
 		return err
@@ -71,7 +72,7 @@ func runWorkspaceList(cmd *cobra.Command, args []string) error {
 	params := &bitbucket.GetWorkspacesParams{}
 
 	resp, err := client.GetWorkspaces(
-		context.Background(),
+		ctx,
 		params,
 	)
 	if err != nil {
@@ -123,6 +124,8 @@ func runWorkspaceList(cmd *cobra.Command, args []string) error {
 }
 
 func runWorkspaceView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := workspaceNewAPIClient()
 	if err != nil {
 		return err
@@ -131,7 +134,7 @@ func runWorkspaceView(cmd *cobra.Command, args []string) error {
 	workspace := args[0]
 
 	resp, err := client.GetWorkspacesWorkspace(
-		context.Background(),
+		ctx,
 		workspace,
 	)
 	if err != nil {
@@ -179,6 +182,8 @@ func runWorkspaceView(cmd *cobra.Command, args []string) error {
 }
 
 func runWorkspaceMembers(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := workspaceNewAPIClient()
 	if err != nil {
 		return err
@@ -187,7 +192,7 @@ func runWorkspaceMembers(cmd *cobra.Command, args []string) error {
 	workspace := args[0]
 
 	resp, err := client.GetWorkspacesWorkspaceMembers(
-		context.Background(),
+		ctx,
 		workspace,
 	)
 	if err != nil {
@@ -245,6 +250,8 @@ func runWorkspaceMembers(cmd *cobra.Command, args []string) error {
 }
 
 func runWorkspaceProjects(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := workspaceNewAPIClient()
 	if err != nil {
 		return err
@@ -253,7 +260,7 @@ func runWorkspaceProjects(cmd *cobra.Command, args []string) error {
 	workspace := args[0]
 
 	resp, err := client.GetWorkspacesWorkspaceProjects(
-		context.Background(),
+		ctx,
 		workspace,
 	)
 	if err != nil {

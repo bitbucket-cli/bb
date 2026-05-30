@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
@@ -82,6 +82,8 @@ func init() {
 }
 
 func runWebhookList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := webhookNewAPIClient()
 	if err != nil {
 		return err
@@ -93,7 +95,7 @@ func runWebhookList(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugHooks(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 	)
@@ -170,6 +172,8 @@ func runWebhookList(cmd *cobra.Command, args []string) error {
 }
 
 func runWebhookCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := webhookNewAPIClient()
 	if err != nil {
 		return err
@@ -210,7 +214,7 @@ func runWebhookCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugHooks(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		withBody,
@@ -238,6 +242,8 @@ func runWebhookCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runWebhookView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := webhookNewAPIClient()
 	if err != nil {
 		return err
@@ -251,7 +257,7 @@ func runWebhookView(cmd *cobra.Command, args []string) error {
 	webhookID := args[1]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugHooksUid(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		webhookID,
@@ -296,6 +302,8 @@ func runWebhookView(cmd *cobra.Command, args []string) error {
 }
 
 func runWebhookDelete(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := webhookNewAPIClient()
 	if err != nil {
 		return err
@@ -309,7 +317,7 @@ func runWebhookDelete(cmd *cobra.Command, args []string) error {
 	webhookID := args[1]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugHooksUid(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		webhookID,

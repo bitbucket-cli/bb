@@ -1,4 +1,4 @@
-module github.com/tom/bb
+module github.com/ThomasRedstone/bb
 
 go 1.24.0
 

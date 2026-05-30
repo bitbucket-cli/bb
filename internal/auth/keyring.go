@@ -72,15 +72,11 @@ func LoadTokens() (*TokenData, error) {
 	return &data, nil
 }
 
-// DeleteTokens removes stored tokens
+// DeleteTokens removes stored tokens from all storage backends.
 func DeleteTokens() error {
-	// Try to delete from keyring
-	err := keyring.Delete(serviceName, "tokens")
-	if err != nil {
-		// Also try to delete file
-		_ = deleteTokenFile()
-	}
-	return deleteTokenFile()
+	_ = keyring.Delete(serviceName, "tokens")
+	_ = deleteTokenFile()
+	return nil
 }
 
 // HasStoredTokens checks if tokens are stored

@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
 )
 
 // State constants matching the Bitbucket API.
@@ -31,7 +31,7 @@ type PullRequest struct {
 // NewClient is the API client constructor. Override in tests.
 var NewClient = api.NewClient
 
-// List returns pull requests for workspace/repo filtered by state.
+// List returns all pull requests for workspace/repo filtered by state.
 // Use the State* constants for state.
 func List(ctx context.Context, workspace, repoSlug, state string) ([]PullRequest, error) {
 	client, err := NewClient()
@@ -60,13 +60,33 @@ func List(ctx context.Context, workspace, repoSlug, state string) ([]PullRequest
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	if result.Values == nil {
-		return nil, nil
+	prs := extractPRs(workspace, repoSlug, &result)
+
+	// Follow pagination links until exhausted.
+	for result.Next != nil && *result.Next != "" {
+		nextResp, err := client.GetURL(ctx, *result.Next)
+		if err != nil {
+			return prs, fmt.Errorf("fetch next page: %w", err)
+		}
+		result = bitbucket.PaginatedPullrequests{}
+		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
+			nextResp.Body.Close()
+			return prs, fmt.Errorf("decode response: %w", err)
+		}
+		nextResp.Body.Close()
+		prs = append(prs, extractPRs(workspace, repoSlug, &result)...)
 	}
 
-	var prs []PullRequest
+	return prs, nil
+}
+
+func extractPRs(workspace, repoSlug string, result *bitbucket.PaginatedPullrequests) []PullRequest {
+	if result.Values == nil {
+		return nil
+	}
+	prs := make([]PullRequest, 0, len(*result.Values))
 	for _, p := range *result.Values {
-		pr := PullRequest{State: state}
+		pr := PullRequest{State: StateOpen}
 		if p.Id != nil {
 			pr.ID = *p.Id
 		}
@@ -87,5 +107,5 @@ func List(ctx context.Context, workspace, repoSlug, state string) ([]PullRequest
 		}
 		prs = append(prs, pr)
 	}
-	return prs, nil
+	return prs
 }

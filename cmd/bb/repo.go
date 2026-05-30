@@ -5,30 +5,39 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/config"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/config"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
-	repoLimit       int
-	repoAll         bool
-	repoDescription string
-	repoPrivate     bool
-	repoPublic      bool
-	repoHasIssues   bool
-	repoNoIssues    bool
-	repoHasWiki     bool
-	repoNoWiki      bool
-	repoForkPolicy  string
+	repoLimit             int
+	repoAll               bool
+	repoCreateDescription string
+	repoCreatePrivate     bool
+	repoCreatePublic      bool
+	repoCreateProject     string
+	repoCreateSCM         string
+	repoCreateHasIssues   bool
+	repoCreateNoIssues    bool
+	repoCreateHasWiki     bool
+	repoCreateNoWiki      bool
+	repoCreateForkPolicy  string
+	repoDescription       string
+	repoPrivate           bool
+	repoPublic            bool
+	repoHasIssues         bool
+	repoNoIssues          bool
+	repoHasWiki           bool
+	repoNoWiki            bool
+	repoForkPolicy        string
 )
 
 // Mockable dependencies for testing
@@ -39,11 +48,10 @@ var (
 	repoAPIBaseURL = "https://api.bitbucket.org/2.0"
 )
 
-
 var repoCmd = &cobra.Command{
 	Use:   "repo",
 	Short: "Manage repositories",
-	Long:  `List, view, and clone Bitbucket repositories.`,
+	Long:  `List, view, create, clone, and update Bitbucket repositories.`,
 }
 
 var repoListCmd = &cobra.Command{
@@ -69,6 +77,17 @@ var repoCloneCmd = &cobra.Command{
 	Long:  `Clone a Bitbucket repository to your local machine.`,
 	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runRepoClone,
+}
+
+var repoCreateCmd = &cobra.Command{
+	Use:   "create <workspace/repo>",
+	Short: "Create a repository",
+	Long: `Create a new Bitbucket repository.
+
+Example:
+  bb repo create myworkspace/myrepo --description "My new repo" --private`,
+	Args: cobra.ExactArgs(1),
+	RunE: runRepoCreate,
 }
 
 var repoUpdateCmd = &cobra.Command{
@@ -116,6 +135,18 @@ func init() {
 	repoListCmd.Flags().IntVarP(&repoLimit, "limit", "l", 0, "Maximum number of repositories to list")
 	repoListCmd.Flags().BoolVarP(&repoAll, "all", "a", false, "Fetch all repositories (may be slow for large workspaces)")
 
+	// Create flags
+	repoCreateCmd.Flags().StringVarP(&repoCreateDescription, "description", "d", "", "Repository description")
+	repoCreateCmd.Flags().BoolVar(&repoCreatePrivate, "private", false, "Make repository private")
+	repoCreateCmd.Flags().BoolVar(&repoCreatePublic, "public", false, "Make repository public")
+	repoCreateCmd.Flags().StringVarP(&repoCreateProject, "project", "p", "", "Project key or UUID")
+	repoCreateCmd.Flags().StringVar(&repoCreateSCM, "scm", "git", "Source control manager")
+	repoCreateCmd.Flags().BoolVar(&repoCreateHasIssues, "enable-issues", false, "Enable issue tracker")
+	repoCreateCmd.Flags().BoolVar(&repoCreateNoIssues, "disable-issues", false, "Disable issue tracker")
+	repoCreateCmd.Flags().BoolVar(&repoCreateHasWiki, "enable-wiki", false, "Enable wiki")
+	repoCreateCmd.Flags().BoolVar(&repoCreateNoWiki, "disable-wiki", false, "Disable wiki")
+	repoCreateCmd.Flags().StringVarP(&repoCreateForkPolicy, "fork-policy", "f", "", "Fork policy (allow_forks, no_public_forks, no_forks)")
+
 	// Update flags
 	repoUpdateCmd.Flags().StringVarP(&repoDescription, "description", "d", "", "Repository description")
 	repoUpdateCmd.Flags().BoolVar(&repoPrivate, "private", false, "Make repository private")
@@ -133,12 +164,15 @@ func init() {
 
 	repoCmd.AddCommand(repoListCmd)
 	repoCmd.AddCommand(repoViewCmd)
+	repoCmd.AddCommand(repoCreateCmd)
 	repoCmd.AddCommand(repoCloneCmd)
 	repoCmd.AddCommand(repoUpdateCmd)
 	repoCmd.AddCommand(repoReviewersCmd)
 }
 
 func runRepoList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := newAPIClient()
 	if err != nil {
 		return err
@@ -160,7 +194,7 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 
 	// First request - use pagelen=100 via query string in the URL
 	firstURL := fmt.Sprintf("%s/repositories/%s?pagelen=100", repoAPIBaseURL, workspace)
-	resp, err := fetchPage(client, firstURL)
+	resp, err := fetchPage(ctx, client, firstURL)
 	if err != nil {
 		return fmt.Errorf("failed to list repositories: %w", err)
 	}
@@ -211,7 +245,7 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 			}
 
 			nextURL := *result.Next
-			nextResp, err := fetchPage(client, nextURL)
+			nextResp, err := fetchPage(ctx, client, nextURL)
 			if err != nil {
 				return fmt.Errorf("failed to fetch next page: %w", err)
 			}
@@ -304,16 +338,14 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// fetchPage fetches a page of results using the provided URL (with auth)
-func fetchPage(client *api.Client, pageURL string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", pageURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	return client.Client.Client.Do(req)
+// fetchPage fetches a page of results using the provided URL (with auth).
+func fetchPage(ctx context.Context, client *api.Client, pageURL string) (*http.Response, error) {
+	return client.GetURL(ctx, pageURL)
 }
 
 func runRepoView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := newAPIClient()
 	if err != nil {
 		return err
@@ -324,7 +356,7 @@ func runRepoView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	resp, err := client.GetRepositoriesWorkspaceRepoSlug(context.Background(), repoCtx.Workspace, repoCtx.RepoSlug)
+	resp, err := client.GetRepositoriesWorkspaceRepoSlug(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
 	if err != nil {
 		return fmt.Errorf("failed to get repository: %w", err)
 	}
@@ -409,6 +441,8 @@ func runRepoView(cmd *cobra.Command, args []string) error {
 }
 
 func runRepoClone(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := newAPIClient()
 	if err != nil {
 		return err
@@ -420,7 +454,7 @@ func runRepoClone(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get repository to find clone URL
-	resp, err := client.GetRepositoriesWorkspaceRepoSlug(context.Background(), repoCtx.Workspace, repoCtx.RepoSlug)
+	resp, err := client.GetRepositoriesWorkspaceRepoSlug(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
 	if err != nil {
 		return fmt.Errorf("failed to get repository: %w", err)
 	}
@@ -475,6 +509,104 @@ func runRepoClone(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runRepoCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
+	client, err := newAPIClient()
+	if err != nil {
+		return err
+	}
+
+	repoCtx, err := api.ParseRepoContext(args[0])
+	if err != nil {
+		return err
+	}
+
+	if repoCreatePrivate && repoCreatePublic {
+		return fmt.Errorf("cannot specify both --private and --public")
+	}
+
+	if repoCreateHasIssues && repoCreateNoIssues {
+		return fmt.Errorf("cannot specify both --enable-issues and --disable-issues")
+	}
+
+	if repoCreateHasWiki && repoCreateNoWiki {
+		return fmt.Errorf("cannot specify both --enable-wiki and --disable-wiki")
+	}
+
+	createReq := map[string]interface{}{
+		"scm": repoCreateSCM,
+	}
+
+	if repoCreateDescription != "" {
+		createReq["description"] = repoCreateDescription
+	}
+
+	if repoCreatePrivate {
+		createReq["is_private"] = true
+	} else if repoCreatePublic {
+		createReq["is_private"] = false
+	}
+
+	if repoCreateHasIssues {
+		createReq["has_issues"] = true
+	} else if repoCreateNoIssues {
+		createReq["has_issues"] = false
+	}
+
+	if repoCreateHasWiki {
+		createReq["has_wiki"] = true
+	} else if repoCreateNoWiki {
+		createReq["has_wiki"] = false
+	}
+
+	if repoCreateProject != "" {
+		createReq["project"] = map[string]interface{}{
+			"key": repoCreateProject,
+		}
+	}
+
+	if repoCreateForkPolicy != "" {
+		createReq["fork_policy"] = repoCreateForkPolicy
+	}
+
+	body, err := json.Marshal(createReq)
+	if err != nil {
+		return fmt.Errorf("failed to create request body: %w", err)
+	}
+
+	resp, err := client.PostRepositoriesWorkspaceRepoSlugWithBody(
+		ctx,
+		repoCtx.Workspace,
+		repoCtx.RepoSlug,
+		"application/json",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		var errResp map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&errResp)
+		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
+	}
+
+	var createdRepo bitbucket.Repository
+	if err := json.NewDecoder(resp.Body).Decode(&createdRepo); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	fullName := args[0]
+	if createdRepo.FullName != nil && *createdRepo.FullName != "" {
+		fullName = *createdRepo.FullName
+	}
+
+	output.Success("Created repository %s", fullName)
+	return nil
+}
+
 func runGitCloneReal(cloneURL, targetDir string) error {
 	gitCmd := exec.Command("git", "clone", cloneURL, targetDir)
 	gitCmd.Stdout = os.Stdout
@@ -483,6 +615,8 @@ func runGitCloneReal(cloneURL, targetDir string) error {
 }
 
 func runRepoUpdate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := newAPIClient()
 	if err != nil {
 		return err
@@ -531,20 +665,12 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create request body: %w", err)
 	}
 
-	withBody := func(ctx context.Context, req *http.Request) error {
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		req.ContentLength = int64(len(body))
-		req.Header.Set("Content-Type", "application/json")
-		return nil
-	}
-
 	resp, err := client.PutRepositoriesWorkspaceRepoSlugWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		"application/json",
 		bytes.NewReader(body),
-		withBody,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update repository: %w", err)
@@ -562,6 +688,8 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func runRepoReviewersList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := newAPIClient()
 	if err != nil {
 		return err
@@ -573,7 +701,7 @@ func runRepoReviewersList(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugDefaultReviewers(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 	)
@@ -626,6 +754,8 @@ func runRepoReviewersList(cmd *cobra.Command, args []string) error {
 }
 
 func runRepoReviewersAdd(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := newAPIClient()
 	if err != nil {
 		return err
@@ -639,7 +769,7 @@ func runRepoReviewersAdd(cmd *cobra.Command, args []string) error {
 	username := args[1]
 
 	resp, err := client.PutRepositoriesWorkspaceRepoSlugDefaultReviewersTargetUsername(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		username,
@@ -660,6 +790,8 @@ func runRepoReviewersAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runRepoReviewersRemove(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := newAPIClient()
 	if err != nil {
 		return err
@@ -673,7 +805,7 @@ func runRepoReviewersRemove(cmd *cobra.Command, args []string) error {
 	username := args[1]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugDefaultReviewersTargetUsername(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		username,

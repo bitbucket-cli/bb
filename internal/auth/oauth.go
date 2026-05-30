@@ -16,18 +16,18 @@ import (
 )
 
 const (
-	authorizationURL    = "https://bitbucket.org/site/oauth2/authorize"
-	defaultTokenURL     = "https://bitbucket.org/site/oauth2/access_token"
-	callbackPort        = 34106
-	callbackPath        = "/callback"
+	authorizationURL = "https://bitbucket.org/site/oauth2/authorize"
+	defaultTokenURL  = "https://bitbucket.org/site/oauth2/access_token"
+	callbackPort     = 34106
+	callbackPath     = "/callback"
 )
 
 // Mockable functions for testing
 var (
-	tokenURL       = defaultTokenURL
-	openBrowserFn  = openBrowserReal
-	httpClientFn   = func() *http.Client { return &http.Client{Timeout: 30 * time.Second} }
-	randRead       = rand.Read
+	tokenURL      = defaultTokenURL
+	openBrowserFn = openBrowserReal
+	httpClientFn  = func() *http.Client { return &http.Client{Timeout: 30 * time.Second} }
+	randRead      = rand.Read
 )
 
 // OAuthConfig holds OAuth configuration
@@ -42,6 +42,7 @@ func DefaultScopes() []string {
 	return []string{
 		"repository",
 		"repository:write",
+		"repository:admin",
 		"pullrequest",
 		"pullrequest:write",
 		"pipeline",

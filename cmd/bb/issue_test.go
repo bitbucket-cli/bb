@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tom/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/api"
 )
 
 func resetIssueMocks() {

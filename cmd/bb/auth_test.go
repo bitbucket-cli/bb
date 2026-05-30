@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tom/bb/internal/auth"
-	"github.com/tom/bb/internal/config"
+	"github.com/ThomasRedstone/bb/internal/auth"
+	"github.com/ThomasRedstone/bb/internal/config"
 )
 
 // resetAuthMocks restores default implementations
@@ -21,6 +21,7 @@ func resetAuthMocks() {
 	authLogout = auth.Logout
 	authGetStatus = auth.GetStatus
 	authSetClientCreds = config.SetClientCredentials
+	authHasStoredTokens = auth.HasStoredTokens
 	authStdinReader = os.Stdin
 }
 
@@ -438,6 +439,7 @@ func TestRunAuthLogin_PromptForCredentials_SaveFails(t *testing.T) {
 func TestRunAuthLogout_Success(t *testing.T) {
 	defer resetAuthMocks()
 
+	authHasStoredTokens = func() bool { return true }
 	authLogout = func() error {
 		return nil
 	}
@@ -467,6 +469,7 @@ func TestRunAuthLogout_Success(t *testing.T) {
 func TestRunAuthLogout_NotLoggedIn(t *testing.T) {
 	defer resetAuthMocks()
 
+	authHasStoredTokens = func() bool { return false }
 	authLogout = func() error {
 		return errors.New("not logged in")
 	}

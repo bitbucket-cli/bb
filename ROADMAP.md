@@ -18,6 +18,40 @@ The CLI currently supports:
 - **Configuration**: Manage CLI settings
 - **Shell Completions**: Bash, Zsh, Fish, PowerShell
 
+## Open-Source Release Blockers
+
+These must be resolved before a public release. See `review.md` for full details.
+
+### Bugs (fix before release)
+
+- [x] **Double body injection** — `repo.go` and `branch.go`: removed redundant `withBody` editor; body is now only set via the positional `io.Reader` arg.
+- [x] **`DeleteTokens` calls `deleteTokenFile()` twice** — fixed; both keyring and file deletions now always run, errors ignored (both stores may legitimately be absent).
+- [x] **`pkg/pr/pr.go` only returns the first page** — `pr.List` now follows `result.Next` pagination links.
+- [x] **`branch list`, `pipeline list`, `pr list` missing pagination** — all three now paginate fully; `pipeline list` also has a `--limit` flag (default 25).
+- [x] **Hash slice panic** — `branch.go`: now uses `h[:min(12, len(h))]`.
+- [x] **Token refresh body reset** — `api/client.go`: body is snapshotted before the first attempt and restored on 401 retry.
+
+### Documentation mismatches (fix before release)
+
+- [x] **`bb auth login --client-id / --client-secret` flags** — flags now exist; README updated with shell-history warning.
+- [x] **`BB_DEBUG=1` documented but not implemented** — removed from README.
+- [x] **Module path** — updated to `github.com/ThomasRedstone/bb` across all files in both repos.
+
+### Architecture (fix before release)
+
+- [x] **`output.PrintSingle` map iteration is non-deterministic** — now sorts keys alphabetically before printing.
+- [x] **Magic 50-row threshold in `output.Print`** — removed; always uses the table renderer.
+
+### Polish (recommended before release)
+
+- [x] **Propagate `cmd.Context()`** — all RunE functions now use `cmdCtx(cmd)` (a helper with nil fallback for tests) instead of `context.Background()`.
+- [x] **`prInteractive` global variable shared across PR subcommands** — removed; each command reads `cmd.Flags().GetBool("interactive")` inside RunE.
+- [x] **`fetchPage` in `repo.go` brittle triple-dereference** — replaced with `client.GetURL()` helper on `api.Client`.
+- [x] **`client_secret` stored in plaintext** — security note added to README pointing users to `bb auth login` and env vars instead.
+- [x] **Unicode symbols in `output.Success`/`output.Error`** — `✓`/`✗` now fall back to `OK`/`ERROR` when stdout is not a terminal.
+
+---
+
 ## Planned Features
 
 ### High Priority

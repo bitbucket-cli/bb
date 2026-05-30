@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/tom/bb/internal/config"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/internal/config"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var configCmd = &cobra.Command{

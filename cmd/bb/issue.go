@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
@@ -127,6 +127,8 @@ func init() {
 }
 
 func runIssueList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := issueNewAPIClient()
 	if err != nil {
 		return err
@@ -138,7 +140,7 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugIssues(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 	)
@@ -210,6 +212,8 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 }
 
 func runIssueCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := issueNewAPIClient()
 	if err != nil {
 		return err
@@ -251,7 +255,7 @@ func runIssueCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugIssuesWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		"application/json",
@@ -281,6 +285,8 @@ func runIssueCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runIssueView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := issueNewAPIClient()
 	if err != nil {
 		return err
@@ -294,7 +300,7 @@ func runIssueView(cmd *cobra.Command, args []string) error {
 	issueID := args[1]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugIssuesIssueId(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		issueID,
@@ -357,6 +363,8 @@ func runIssueView(cmd *cobra.Command, args []string) error {
 }
 
 func runIssueUpdate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := issueNewAPIClient()
 	if err != nil {
 		return err
@@ -411,7 +419,7 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PutRepositoriesWorkspaceRepoSlugIssuesIssueId(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		issueID,
@@ -433,6 +441,8 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func runIssueDelete(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := issueNewAPIClient()
 	if err != nil {
 		return err
@@ -446,7 +456,7 @@ func runIssueDelete(cmd *cobra.Command, args []string) error {
 	issueID := args[1]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugIssuesIssueId(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		issueID,
@@ -467,6 +477,8 @@ func runIssueDelete(cmd *cobra.Command, args []string) error {
 }
 
 func runIssueComment(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := issueNewAPIClient()
 	if err != nil {
 		return err
@@ -498,7 +510,7 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugIssuesIssueIdCommentsWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		issueID,
@@ -522,6 +534,8 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 }
 
 func runIssueComments(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := issueNewAPIClient()
 	if err != nil {
 		return err
@@ -535,7 +549,7 @@ func runIssueComments(cmd *cobra.Command, args []string) error {
 	issueID := args[1]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugIssuesIssueIdComments(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		issueID,

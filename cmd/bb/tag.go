@@ -9,9 +9,9 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	"github.com/tom/bb/internal/output"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/output"
 )
 
 var (
@@ -79,6 +79,8 @@ func init() {
 }
 
 func runTagList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := tagNewAPIClient()
 	if err != nil {
 		return err
@@ -92,7 +94,7 @@ func runTagList(cmd *cobra.Command, args []string) error {
 	params := &bitbucket.GetRepositoriesWorkspaceRepoSlugRefsTagsParams{}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugRefsTags(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		params,
@@ -164,6 +166,8 @@ func runTagList(cmd *cobra.Command, args []string) error {
 }
 
 func runTagCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := tagNewAPIClient()
 	if err != nil {
 		return err
@@ -200,7 +204,7 @@ func runTagCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugRefsTagsWithBody(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		"application/json",
@@ -223,6 +227,8 @@ func runTagCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runTagView(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := tagNewAPIClient()
 	if err != nil {
 		return err
@@ -236,7 +242,7 @@ func runTagView(cmd *cobra.Command, args []string) error {
 	tagName := args[1]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugRefsTagsName(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		tagName,
@@ -296,6 +302,8 @@ func runTagView(cmd *cobra.Command, args []string) error {
 }
 
 func runTagDelete(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
 	client, err := tagNewAPIClient()
 	if err != nil {
 		return err
@@ -310,7 +318,7 @@ func runTagDelete(cmd *cobra.Command, args []string) error {
 
 	// Use DeleteRepositoriesWorkspaceRepoSlugRefsTagsName
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugRefsTagsName(
-		context.Background(),
+		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		tagName,

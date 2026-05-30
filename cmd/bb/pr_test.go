@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/api"
-	bbpr "github.com/tom/bb/pkg/pr"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/api"
+	bbpr "github.com/ThomasRedstone/bb/pkg/pr"
 )
 
 // resetPRMocks restores default implementations

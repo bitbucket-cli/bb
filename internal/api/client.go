@@ -1,14 +1,16 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
 
-	"github.com/tom/bb/generated/bitbucket"
-	"github.com/tom/bb/internal/auth"
+	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/auth"
 )
 
 const baseURL = "https://api.bitbucket.org/2.0"
@@ -42,6 +44,18 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
+	// Snapshot body so we can replay it on a 401 retry.
+	var bodySnapshot []byte
+	if req.Body != nil && req.Body != http.NoBody {
+		var err error
+		bodySnapshot, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read request body: %w", err)
+		}
+		req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
+	}
+
 	resp, err := c.underlying.Do(req)
 	if err != nil {
 		return nil, err
@@ -51,7 +65,6 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 	if resp.StatusCode == http.StatusUnauthorized && token != "" && c.canRefresh {
 		resp.Body.Close()
 
-		// Try to refresh the token
 		newTokens, err := refreshAccessToken()
 		if err != nil {
 			return nil, fmt.Errorf("authentication expired, please run 'bb auth login': %w", err)
@@ -61,8 +74,10 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 		c.token = newTokens.AccessToken
 		c.tokenMu.Unlock()
 
-		// Retry the request with the new token
 		req.Header.Set("Authorization", "Bearer "+newTokens.AccessToken)
+		if bodySnapshot != nil {
+			req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
+		}
 		return c.underlying.Do(req)
 	}
 
@@ -177,6 +192,20 @@ func CheckResponse(resp *http.Response) error {
 		return nil
 	}
 	return fmt.Errorf("API error: %s", resp.Status)
+}
+
+// GetURL makes an authenticated GET request to an arbitrary URL.
+// Used to follow Bitbucket pagination "next" links.
+func (c *Client) GetURL(ctx context.Context, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.httpClient != nil {
+		return c.httpClient.Do(req)
+	}
+	// Unauthenticated client (e.g. created directly in tests).
+	return http.DefaultClient.Do(req)
 }
 
 // Context helper
