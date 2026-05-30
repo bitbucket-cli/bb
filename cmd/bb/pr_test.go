@@ -9,19 +9,21 @@ import (
 
 	"github.com/tom/bb/generated/bitbucket"
 	"github.com/tom/bb/internal/api"
+	bbpr "github.com/tom/bb/pkg/pr"
 )
 
 // resetPRMocks restores default implementations
 func resetPRMocks() {
 	prNewAPIClient = api.NewClient
+	bbpr.NewClient = api.NewClient
 }
 
 func TestRunPRList_NoClient(t *testing.T) {
 	defer resetPRMocks()
 
-	prNewAPIClient = func() (*api.Client, error) {
-		return nil, errors.New("auth required")
-	}
+	fail := func() (*api.Client, error) { return nil, errors.New("auth required") }
+	prNewAPIClient = fail
+	bbpr.NewClient = fail
 
 	err := runPRList(prListCmd, []string{"workspace/repo"})
 	if err == nil {
@@ -323,7 +325,9 @@ func TestRunPRList_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	prNewAPIClient = mockAPIClientFactory(server)
+	mock := mockAPIClientFactory(server)
+	prNewAPIClient = mock
+	bbpr.NewClient = mock
 
 	err := runPRList(prListCmd, []string{"workspace/repo"})
 	if err == nil {
@@ -340,7 +344,9 @@ func TestRunPRList_NoPRs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	prNewAPIClient = mockAPIClientFactory(server)
+	mock := mockAPIClientFactory(server)
+	prNewAPIClient = mock
+	bbpr.NewClient = mock
 
 	err := runPRList(prListCmd, []string{"workspace/repo"})
 	if err != nil {
@@ -366,7 +372,9 @@ func TestRunPRList_WithPRs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	prNewAPIClient = mockAPIClientFactory(server)
+	mock := mockAPIClientFactory(server)
+	prNewAPIClient = mock
+	bbpr.NewClient = mock
 
 	err := runPRList(prListCmd, []string{"workspace/repo"})
 	if err != nil {
@@ -382,7 +390,9 @@ func TestRunPRList_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	prNewAPIClient = mockAPIClientFactory(server)
+	mock := mockAPIClientFactory(server)
+	prNewAPIClient = mock
+	bbpr.NewClient = mock
 
 	err := runPRList(prListCmd, []string{"workspace/repo"})
 	if err == nil {

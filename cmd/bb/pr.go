@@ -151,7 +151,12 @@ func runPRList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	prs, err := bbpr.List(cmd.Context(), repoCtx.Workspace, repoCtx.RepoSlug, prState)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	prs, err := bbpr.List(ctx, repoCtx.Workspace, repoCtx.RepoSlug, prState)
 	if err != nil {
 		return err
 	}

@@ -28,10 +28,13 @@ type PullRequest struct {
 	State  string
 }
 
+// NewClient is the API client constructor. Override in tests.
+var NewClient = api.NewClient
+
 // List returns pull requests for workspace/repo filtered by state.
 // Use the State* constants for state.
 func List(ctx context.Context, workspace, repoSlug, state string) ([]PullRequest, error) {
-	client, err := api.NewClient()
+	client, err := NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("bitbucket auth: %w", err)
 	}

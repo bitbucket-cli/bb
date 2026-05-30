@@ -221,26 +221,22 @@ func TestRunAuthLogout_AlreadyLoggedOut(t *testing.T) {
 }
 
 func TestRunAuthLogin_NoCredentials(t *testing.T) {
-	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	os.Unsetenv("BB_CLIENT_ID")
-	os.Unsetenv("BB_CLIENT_SECRET")
-	auth.ForceFileStorage = true
+	// Override credential lookups so viper's global state doesn't leak in
+	origGetClientID := authGetClientID
+	origGetClientSecret := authGetClientSecret
+	authGetClientID = func() string { return "" }
+	authGetClientSecret = func() string { return "" }
 	defer func() {
-		os.Setenv("HOME", origHome)
-		auth.ForceFileStorage = false
+		authGetClientID = origGetClientID
+		authGetClientSecret = origGetClientSecret
 	}()
 
-	config.Init()
-
-	// Simulate empty input - this will cause the command to fail
-	// because it reads from stdin which will be empty/EOF
-	oldStdin := os.Stdin
+	// Simulate empty input so the prompts return empty strings
 	r, w, _ := os.Pipe()
-	w.Close() // Close immediately to simulate EOF
-	os.Stdin = r
-	defer func() { os.Stdin = oldStdin }()
+	w.Close()
+	origStdinReader := authStdinReader
+	authStdinReader = r
+	defer func() { authStdinReader = origStdinReader }()
 
 	err := runAuthLogin(authLoginCmd, []string{})
 
