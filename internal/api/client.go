@@ -50,9 +50,10 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 		var err error
 		bodySnapshot, err = io.ReadAll(req.Body)
 		if err != nil {
+			_ = req.Body.Close()
 			return nil, fmt.Errorf("failed to read request body: %w", err)
 		}
-		req.Body.Close()
+		_ = req.Body.Close()
 		req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 	}
 
