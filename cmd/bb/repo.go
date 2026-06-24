@@ -561,9 +561,11 @@ func runRepoCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	if repoCreateProject != "" {
-		createReq["project"] = map[string]interface{}{
-			"key": repoCreateProject,
+		projectField := "key"
+		if strings.HasPrefix(repoCreateProject, "{") {
+			projectField = "uuid"
 		}
+		createReq["project"] = map[string]interface{}{projectField: repoCreateProject}
 	}
 
 	if repoCreateForkPolicy != "" {
