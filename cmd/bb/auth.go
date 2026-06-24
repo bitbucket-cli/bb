@@ -77,11 +77,11 @@ func init() {
 
 func runAuthLogin(cmd *cobra.Command, args []string) error {
 	// Flags take precedence, then env/config, then interactive prompt.
-	clientID := authFlagClientID
+	clientID, _ := cmd.Flags().GetString("client-id")
 	if clientID == "" {
 		clientID = authGetClientID()
 	}
-	clientSecret := authFlagClientSecret
+	clientSecret, _ := cmd.Flags().GetString("client-secret")
 	if clientSecret == "" {
 		clientSecret = authGetClientSecret()
 	}
