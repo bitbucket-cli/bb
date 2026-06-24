@@ -214,6 +214,10 @@ func TestPRCommandStructure(t *testing.T) {
 	if prApproveCmd.RunE == nil {
 		t.Error("pr approve should have RunE")
 	}
+
+	if prDeclineCmd.RunE == nil {
+		t.Error("pr decline should have RunE")
+	}
 }
 
 func TestPRFlags(t *testing.T) {
@@ -734,6 +738,79 @@ func TestRunPRApprove_Success(t *testing.T) {
 	prNewAPIClient = mockAPIClientFactory(server)
 
 	err := runPRApprove(prApproveCmd, []string{"workspace/repo", "1"})
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestRunPRDecline_NoClient(t *testing.T) {
+	defer resetPRMocks()
+
+	prNewAPIClient = func() (*api.Client, error) {
+		return nil, errors.New("auth required")
+	}
+
+	err := runPRDecline(prDeclineCmd, []string{"workspace/repo", "1"})
+	if err == nil {
+		t.Error("Expected error when client creation fails")
+	}
+}
+
+func TestRunPRDecline_InvalidRepo(t *testing.T) {
+	defer resetPRMocks()
+
+	prNewAPIClient = func() (*api.Client, error) {
+		return &api.Client{}, nil
+	}
+
+	err := runPRDecline(prDeclineCmd, []string{"invalid", "1"})
+	if err == nil {
+		t.Error("Expected error for invalid repo format")
+	}
+}
+
+func TestRunPRDecline_InvalidPRNumber(t *testing.T) {
+	defer resetPRMocks()
+
+	prNewAPIClient = func() (*api.Client, error) {
+		return &api.Client{}, nil
+	}
+
+	err := runPRDecline(prDeclineCmd, []string{"workspace/repo", "not-a-number"})
+	if err == nil {
+		t.Error("Expected error for invalid PR number")
+	}
+}
+
+func TestRunPRDecline_APIError(t *testing.T) {
+	defer resetPRMocks()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "forbidden"})
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+
+	err := runPRDecline(prDeclineCmd, []string{"workspace/repo", "1"})
+	if err == nil {
+		t.Error("Expected error on API error")
+	}
+}
+
+func TestRunPRDecline_Success(t *testing.T) {
+	defer resetPRMocks()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{})
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+
+	err := runPRDecline(prDeclineCmd, []string{"workspace/repo", "1"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}

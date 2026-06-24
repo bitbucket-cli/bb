@@ -157,6 +157,9 @@ bb pr merge myworkspace/myrepo 123
 # Approve a pull request
 bb pr approve myworkspace/myrepo 123
 
+# Decline a pull request
+bb pr decline myworkspace/myrepo 123
+
 # View PR diff
 bb pr diff myworkspace/myrepo 123
 

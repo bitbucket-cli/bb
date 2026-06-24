@@ -33,7 +33,7 @@ var (
 var prCmd = &cobra.Command{
 	Use:   "pr",
 	Short: "Manage pull requests",
-	Long:  `List, view, create, merge, and approve pull requests.`,
+	Long:  `List, view, create, merge, approve, and decline pull requests.`,
 }
 
 var prListCmd = &cobra.Command{
@@ -80,6 +80,16 @@ var prApproveCmd = &cobra.Command{
 Use -i flag for interactive selection when pr-number is omitted.`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runPRApprove,
+}
+
+var prDeclineCmd = &cobra.Command{
+	Use:   "decline <workspace/repo> [pr-number]",
+	Short: "Decline a pull request",
+	Long: `Decline (reject) an open pull request without merging it.
+
+Use -i flag for interactive selection when pr-number is omitted.`,
+	Args: cobra.RangeArgs(1, 2),
+	RunE: runPRDecline,
 }
 
 var prCommentsCmd = &cobra.Command{
@@ -130,6 +140,7 @@ func init() {
 	prViewCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 	prMergeCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 	prApproveCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
+	prDeclineCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 	prCommentsCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 	prCommentCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 	prDiffCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
@@ -139,6 +150,7 @@ func init() {
 	prCmd.AddCommand(prCreateCmd)
 	prCmd.AddCommand(prMergeCmd)
 	prCmd.AddCommand(prApproveCmd)
+	prCmd.AddCommand(prDeclineCmd)
 	prCmd.AddCommand(prCommentsCmd)
 	prCmd.AddCommand(prCommentCmd)
 	prCmd.AddCommand(prDiffCmd)
@@ -477,6 +489,46 @@ func runPRApprove(cmd *cobra.Command, args []string) error {
 	}
 
 	output.Success("Approved pull request #%d", prID)
+	return nil
+}
+
+func runPRDecline(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
+	client, err := prNewAPIClient()
+	if err != nil {
+		return err
+	}
+
+	repoCtx, err := api.ParseRepoContext(args[0])
+	if err != nil {
+		return err
+	}
+
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdDecline(
+		ctx,
+		repoCtx.Workspace,
+		repoCtx.RepoSlug,
+		prID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to decline pull request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		var errResp map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&errResp)
+		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
+	}
+
+	output.Success("Declined pull request #%d", prID)
 	return nil
 }
 
