@@ -106,10 +106,27 @@ var isTerminal = func() bool {
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
 
+// isStderrTerminal reports whether stderr is connected to a terminal.
+var isStderrTerminal = func() bool {
+	fi, err := os.Stderr.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
 // symbol returns a plain ASCII fallback when stdout is not a terminal
 // (e.g. Windows cmd.exe, CI pipelines, redirected output).
 func symbol(unicode, ascii string) string {
 	if isTerminal() {
+		return unicode
+	}
+	return ascii
+}
+
+// symbolStderr returns a plain ASCII fallback when stderr is not a terminal.
+func symbolStderr(unicode, ascii string) string {
+	if isStderrTerminal() {
 		return unicode
 	}
 	return ascii
@@ -122,7 +139,7 @@ func Success(format string, args ...interface{}) {
 
 // Error prints an error message
 func Error(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, symbol("✗", "ERROR")+" "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, symbolStderr("✗", "ERROR")+" "+format+"\n", args...)
 }
 
 // Info prints an info message
