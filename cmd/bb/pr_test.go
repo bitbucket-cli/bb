@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 	bbpr "github.com/ThomasRedstone/bb/pkg/pr"
 )
 

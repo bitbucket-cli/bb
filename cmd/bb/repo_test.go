@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/config"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 )
 
 // resetRepoMocks restores default implementations

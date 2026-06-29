@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (

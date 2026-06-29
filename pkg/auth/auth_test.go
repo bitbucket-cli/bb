@@ -332,6 +332,74 @@ func TestGetValidToken_APIToken(t *testing.T) {
 	}
 }
 
+func TestGetAPIEmail(t *testing.T) {
+	os.Unsetenv("BITBUCKET_EMAIL")
+	if GetAPIEmail() != "" {
+		t.Error("GetAPIEmail should return empty when env not set")
+	}
+
+	os.Setenv("BITBUCKET_EMAIL", "me@example.com")
+	defer os.Unsetenv("BITBUCKET_EMAIL")
+
+	if GetAPIEmail() != "me@example.com" {
+		t.Errorf("GetAPIEmail = %q, want %q", GetAPIEmail(), "me@example.com")
+	}
+}
+
+func TestGetCredential_TokenOnlyIsBearer(t *testing.T) {
+	os.Unsetenv("BITBUCKET_EMAIL")
+	os.Setenv("BITBUCKET_API_TOKEN", "raw-token")
+	defer os.Unsetenv("BITBUCKET_API_TOKEN")
+
+	cred, err := GetCredential()
+	if err != nil {
+		t.Fatalf("GetCredential error: %v", err)
+	}
+	if cred.Scheme != SchemeBearer {
+		t.Errorf("Scheme = %q, want %q", cred.Scheme, SchemeBearer)
+	}
+	if cred.Token != "raw-token" || cred.Username != "" {
+		t.Errorf("cred = %+v, want bearer raw-token with no username", cred)
+	}
+}
+
+func TestGetCredential_TokenWithEmailIsBasic(t *testing.T) {
+	os.Setenv("BITBUCKET_API_TOKEN", "api-token")
+	os.Setenv("BITBUCKET_EMAIL", "me@example.com")
+	defer os.Unsetenv("BITBUCKET_API_TOKEN")
+	defer os.Unsetenv("BITBUCKET_EMAIL")
+
+	cred, err := GetCredential()
+	if err != nil {
+		t.Fatalf("GetCredential error: %v", err)
+	}
+	if cred.Scheme != SchemeBasic {
+		t.Errorf("Scheme = %q, want %q", cred.Scheme, SchemeBasic)
+	}
+	if cred.Username != "me@example.com" || cred.Token != "api-token" {
+		t.Errorf("cred = %+v, want basic me@example.com:api-token", cred)
+	}
+}
+
+func TestGetCredential_OAuthIsBearer(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	os.Unsetenv("BITBUCKET_EMAIL")
+
+	if err := StoreTokens(&TokenData{AccessToken: "oauth-token"}); err != nil {
+		t.Fatalf("StoreTokens error: %v", err)
+	}
+
+	cred, err := GetCredential()
+	if err != nil {
+		t.Fatalf("GetCredential error: %v", err)
+	}
+	if cred.Scheme != SchemeBearer || cred.Token != "oauth-token" {
+		t.Errorf("cred = %+v, want bearer oauth-token", cred)
+	}
+}
+
 func TestGetValidToken_OAuthToken(t *testing.T) {
 	cleanup := setupTestHome(t)
 	defer cleanup()

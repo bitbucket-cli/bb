@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 )
 
 // resetBranchMocks restores default implementations
@@ -608,11 +608,11 @@ func TestRunBranchRestrictList_WithRestrictions(t *testing.T) {
 		result := map[string]interface{}{
 			"values": []interface{}{
 				map[string]interface{}{
-					"id":               1,
-					"kind":             "require_approvals_to_merge",
-					"pattern":          "main",
+					"id":                1,
+					"kind":              "require_approvals_to_merge",
+					"pattern":           "main",
 					"branch_match_kind": "glob",
-					"value":            value,
+					"value":             value,
 				},
 			},
 		}
@@ -763,13 +763,13 @@ func TestRunBranchRestrictView_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		value := 2
 		result := map[string]interface{}{
-			"id":               1,
-			"kind":             "require_approvals_to_merge",
-			"pattern":          "main",
+			"id":                1,
+			"kind":              "require_approvals_to_merge",
+			"pattern":           "main",
 			"branch_match_kind": "glob",
-			"value":            value,
-			"users":            []interface{}{},
-			"groups":           []interface{}{},
+			"value":             value,
+			"users":             []interface{}{},
+			"groups":            []interface{}{},
 		}
 		json.NewEncoder(w).Encode(result)
 	}))

@@ -21,27 +21,77 @@ func HasAPIToken() bool {
 	return GetAPIToken() != ""
 }
 
-// GetValidToken returns a valid access token, refreshing if necessary
-func GetValidToken() (string, error) {
-	// Check for BITBUCKET_API_TOKEN first (app password or access token)
+// GetAPIEmail returns the BITBUCKET_EMAIL if set. When paired with
+// BITBUCKET_API_TOKEN it selects HTTP Basic auth (the scheme required by
+// Atlassian scoped API tokens, the replacement for deprecated app passwords).
+func GetAPIEmail() string {
+	return os.Getenv("BITBUCKET_EMAIL")
+}
+
+// Auth schemes used when attaching credentials to a request.
+const (
+	SchemeBearer = "bearer"
+	SchemeBasic  = "basic"
+)
+
+// Credential carries the resolved authentication for a request along with the
+// scheme used to attach it. OAuth access tokens and Bitbucket Access Tokens use
+// Bearer; Atlassian scoped API tokens use Basic (email:token).
+type Credential struct {
+	Scheme   string
+	Username string // basic-auth username (account email); empty for bearer
+	Token    string // bearer token, or basic-auth password
+}
+
+// Apply attaches the credential to an outgoing request.
+func (c Credential) Apply(req *http.Request) {
+	if c.Token == "" {
+		return
+	}
+	if c.Scheme == SchemeBasic {
+		req.SetBasicAuth(c.Username, c.Token)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+}
+
+// GetCredential resolves the credential to use for API requests.
+//
+// Selection order:
+//  1. BITBUCKET_API_TOKEN + BITBUCKET_EMAIL -> Basic (Atlassian API token)
+//  2. BITBUCKET_API_TOKEN alone             -> Bearer (Access Token / raw token)
+//  3. stored OAuth access token             -> Bearer
+func GetCredential() (Credential, error) {
 	if token := GetAPIToken(); token != "" {
-		return token, nil
+		if email := GetAPIEmail(); email != "" {
+			return Credential{Scheme: SchemeBasic, Username: email, Token: token}, nil
+		}
+		return Credential{Scheme: SchemeBearer, Token: token}, nil
 	}
 
 	// Fall back to OAuth tokens
 	tokens, err := LoadTokens()
 	if err != nil {
-		return "", fmt.Errorf("not logged in: %w", err)
+		return Credential{}, fmt.Errorf("not logged in: %w", err)
 	}
 
 	if tokens.AccessToken == "" {
-		return "", fmt.Errorf("not logged in")
+		return Credential{}, fmt.Errorf("not logged in")
 	}
 
-	// Access tokens expire in 2 hours (7200 seconds)
-	// We don't store expiry time, so always try to use the token first
-	// The API client wrapper will handle refresh on 401
-	return tokens.AccessToken, nil
+	// Access tokens expire in 2 hours; we don't store expiry, so use the token
+	// optimistically — the API client wrapper handles refresh on 401.
+	return Credential{Scheme: SchemeBearer, Token: tokens.AccessToken}, nil
+}
+
+// GetValidToken returns a valid access token string. Retained for callers that
+// only need the raw token; prefer GetCredential, which also carries the scheme.
+func GetValidToken() (string, error) {
+	cred, err := GetCredential()
+	if err != nil {
+		return "", err
+	}
+	return cred.Token, nil
 }
 
 // RefreshAccessToken uses the refresh token to get a new access token
@@ -109,15 +159,16 @@ func Logout() error {
 type AuthMethod string
 
 const (
-	AuthMethodNone   AuthMethod = "none"
-	AuthMethodToken  AuthMethod = "token"  // BITBUCKET_API_TOKEN
-	AuthMethodOAuth  AuthMethod = "oauth"  // OAuth 2.0 flow
+	AuthMethodNone  AuthMethod = "none"
+	AuthMethodToken AuthMethod = "token" // BITBUCKET_API_TOKEN
+	AuthMethodOAuth AuthMethod = "oauth" // OAuth 2.0 flow
 )
 
 // AuthStatus returns information about the current authentication state
 type AuthStatus struct {
 	LoggedIn bool
 	Method   AuthMethod
+	Scheme   string // auth scheme when Method is token: "basic" or "bearer"
 	Scopes   string
 }
 
@@ -125,9 +176,14 @@ type AuthStatus struct {
 func GetStatus() (*AuthStatus, error) {
 	// Check for API token first
 	if HasAPIToken() {
+		scheme := SchemeBearer
+		if GetAPIEmail() != "" {
+			scheme = SchemeBasic
+		}
 		return &AuthStatus{
 			LoggedIn: true,
 			Method:   AuthMethodToken,
+			Scheme:   scheme,
 		}, nil
 	}
 

@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -155,12 +155,12 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 
 	var result struct {
 		Values []struct {
-			ID        int    `json:"id"`
-			Title     string `json:"title"`
-			State     string `json:"state"`
-			Priority  string `json:"priority"`
-			Kind      string `json:"kind"`
-			Reporter  *struct {
+			ID       int    `json:"id"`
+			Title    string `json:"title"`
+			State    string `json:"state"`
+			Priority string `json:"priority"`
+			Kind     string `json:"kind"`
+			Reporter *struct {
 				DisplayName string `json:"display_name"`
 			} `json:"reporter"`
 			Assignee *struct {
@@ -315,12 +315,12 @@ func runIssueView(cmd *cobra.Command, args []string) error {
 	}
 
 	var issue struct {
-		ID        int    `json:"id"`
-		Title     string `json:"title"`
-		State     string `json:"state"`
-		Priority  string `json:"priority"`
-		Kind      string `json:"kind"`
-		Content   *struct {
+		ID       int    `json:"id"`
+		Title    string `json:"title"`
+		State    string `json:"state"`
+		Priority string `json:"priority"`
+		Kind     string `json:"kind"`
+		Content  *struct {
 			Raw string `json:"raw"`
 		} `json:"content"`
 		Reporter *struct {

@@ -7,12 +7,12 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/interactive"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 	bbpr "github.com/ThomasRedstone/bb/pkg/pr"
+	"github.com/spf13/cobra"
 )
 
 var (

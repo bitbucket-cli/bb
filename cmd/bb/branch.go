@@ -8,18 +8,18 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
-	branchFrom            string
-	restrictionKind       string
-	restrictionPattern    string
-	restrictionValue      int
-	restrictionMatchKind  string
+	branchFrom           string
+	restrictionKind      string
+	restrictionPattern   string
+	restrictionValue     int
+	restrictionMatchKind string
 )
 
 // Mockable dependencies for testing
@@ -429,11 +429,11 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 			value,
 		})
 		jsonData = append(jsonData, map[string]interface{}{
-			"id":               restriction.ID,
-			"kind":             restriction.Kind,
-			"pattern":          restriction.Pattern,
+			"id":                restriction.ID,
+			"kind":              restriction.Kind,
+			"pattern":           restriction.Pattern,
 			"branch_match_kind": restriction.BranchMatchKind,
-			"value":            restriction.Value,
+			"value":             restriction.Value,
 		})
 	}
 
@@ -454,8 +454,8 @@ func runBranchRestrictCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	restrictionReq := map[string]interface{}{
-		"kind":             restrictionKind,
-		"pattern":          restrictionPattern,
+		"kind":              restrictionKind,
+		"pattern":           restrictionPattern,
 		"branch_match_kind": restrictionMatchKind,
 	}
 
@@ -564,11 +564,11 @@ func runBranchRestrictView(cmd *cobra.Command, args []string) error {
 	}
 
 	var restriction struct {
-		ID              int      `json:"id"`
-		Kind            string   `json:"kind"`
-		Pattern         string   `json:"pattern"`
-		BranchMatchKind string   `json:"branch_match_kind"`
-		Value           *int     `json:"value"`
+		ID              int    `json:"id"`
+		Kind            string `json:"kind"`
+		Pattern         string `json:"pattern"`
+		BranchMatchKind string `json:"branch_match_kind"`
+		Value           *int   `json:"value"`
 		Users           []struct {
 			DisplayName string `json:"display_name"`
 		} `json:"users"`

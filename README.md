@@ -343,8 +343,22 @@ Available settings:
 | `BB_WORKSPACE` | Default workspace |
 | `BB_CLIENT_ID` | OAuth client ID |
 | `BB_CLIENT_SECRET` | OAuth client secret |
+| `BITBUCKET_API_TOKEN` | API token to use instead of OAuth (see below) |
+| `BITBUCKET_EMAIL` | Account email; pairs with `BITBUCKET_API_TOKEN` to use Basic auth |
 
 Environment variables take precedence over config file values.
+
+#### Token authentication
+
+As an alternative to `bb auth login`, set `BITBUCKET_API_TOKEN`:
+
+- **Atlassian API token** (the replacement for deprecated app passwords): also
+  set `BITBUCKET_EMAIL`. The two are sent as HTTP Basic auth (`email:token`).
+- **Repository/Workspace Access Token**: set only `BITBUCKET_API_TOKEN` (no
+  email). It is sent as a `Bearer` token.
+
+> Bitbucket app passwords are deprecated and being removed. Create an Atlassian
+> API token with the scopes you need and set `BITBUCKET_EMAIL` alongside it.
 
 ## Output Formats
 

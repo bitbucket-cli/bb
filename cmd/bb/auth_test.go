@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ThomasRedstone/bb/internal/auth"
 	"github.com/ThomasRedstone/bb/internal/config"
+	"github.com/ThomasRedstone/bb/pkg/auth"
 )
 
 // resetAuthMocks restores default implementations

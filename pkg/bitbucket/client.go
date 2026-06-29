@@ -1,4 +1,4 @@
-package api
+package bitbucket
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/auth"
+	"github.com/ThomasRedstone/bb/pkg/auth"
 )
 
 const baseURL = "https://api.bitbucket.org/2.0"
@@ -27,22 +27,21 @@ type Client struct {
 	httpClient *authClient
 }
 
-// authClient is an HTTP client that adds Bearer token authentication
+// authClient is an HTTP client that attaches the resolved credential
+// (Bearer or Basic) to each request.
 type authClient struct {
-	token        string
-	tokenMu      sync.RWMutex
-	underlying   *http.Client
-	canRefresh   bool // false when using BITBUCKET_API_TOKEN
+	cred       auth.Credential
+	tokenMu    sync.RWMutex
+	underlying *http.Client
+	canRefresh bool // false when using BITBUCKET_API_TOKEN
 }
 
 func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 	c.tokenMu.RLock()
-	token := c.token
+	cred := c.cred
 	c.tokenMu.RUnlock()
 
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
+	cred.Apply(req)
 
 	// Snapshot body so we can replay it on a 401 retry.
 	var bodySnapshot []byte
@@ -61,8 +60,8 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	// Handle token refresh on 401 (only for OAuth tokens)
-	if resp.StatusCode == http.StatusUnauthorized && token != "" && c.canRefresh {
+	// Handle token refresh on 401 (only for OAuth tokens, which are Bearer)
+	if resp.StatusCode == http.StatusUnauthorized && cred.Token != "" && c.canRefresh {
 		resp.Body.Close()
 
 		newTokens, err := refreshAccessToken()
@@ -70,11 +69,12 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 			return nil, fmt.Errorf("authentication expired, please run 'bb auth login': %w", err)
 		}
 
+		refreshed := auth.Credential{Scheme: auth.SchemeBearer, Token: newTokens.AccessToken}
 		c.tokenMu.Lock()
-		c.token = newTokens.AccessToken
+		c.cred = refreshed
 		c.tokenMu.Unlock()
 
-		req.Header.Set("Authorization", "Bearer "+newTokens.AccessToken)
+		refreshed.Apply(req)
 		if bodySnapshot != nil {
 			req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 		}
@@ -86,7 +86,7 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 
 // NewClient creates a new authenticated Bitbucket API client
 func NewClient() (*Client, error) {
-	token, err := auth.GetValidToken()
+	cred, err := auth.GetCredential()
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func NewClient() (*Client, error) {
 	canRefresh := !auth.HasAPIToken()
 
 	httpClient := &authClient{
-		token:      token,
+		cred:       cred,
 		underlying: http.DefaultClient,
 		canRefresh: canRefresh,
 	}
@@ -111,6 +111,20 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
+// NewClientOptional returns an authenticated client, or nil when no credentials
+// are configured (no BITBUCKET_API_TOKEN and no stored OAuth tokens). Useful for
+// callers that treat Bitbucket access as optional.
+func NewClientOptional() *Client {
+	if !auth.HasAPIToken() && !auth.HasStoredTokens() {
+		return nil
+	}
+	client, err := NewClient()
+	if err != nil {
+		return nil
+	}
+	return client
+}
+
 // NewUnauthenticatedClient creates a client without authentication (for public endpoints)
 func NewUnauthenticatedClient() (*Client, error) {
 	client, err := newBitbucketClient(baseURL)
@@ -124,21 +138,7 @@ func NewUnauthenticatedClient() (*Client, error) {
 }
 
 // Helper types for common operations
-
-// Repository represents a simplified repository structure
-type Repository struct {
-	UUID        string
-	Slug        string
-	Name        string
-	FullName    string
-	Description string
-	IsPrivate   bool
-	Language    string
-	UpdatedOn   string
-	MainBranch  string
-	CloneSSH    string
-	CloneHTTPS  string
-}
+// (Repository lives in repositories.go alongside its API methods.)
 
 // PullRequest represents a simplified PR structure
 type PullRequest struct {
@@ -161,14 +161,14 @@ type Branch struct {
 
 // Pipeline represents a simplified pipeline structure
 type Pipeline struct {
-	UUID       string
-	BuildNum   int
-	State      string
-	Result     string
-	CreatedOn  string
+	UUID        string
+	BuildNum    int
+	State       string
+	Result      string
+	CreatedOn   string
 	CompletedOn string
-	Duration   int
-	Target     string
+	Duration    int
+	Target      string
 }
 
 // Workspace/repo context helper

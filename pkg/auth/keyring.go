@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	serviceName    = "bb-cli"
-	accessTokenKey = "access_token"
+	serviceName     = "bb-cli"
+	accessTokenKey  = "access_token"
 	refreshTokenKey = "refresh_token"
 )
 

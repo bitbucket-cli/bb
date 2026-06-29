@@ -7,23 +7,23 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
-	"github.com/ThomasRedstone/bb/internal/auth"
 	"github.com/ThomasRedstone/bb/internal/config"
 	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/ThomasRedstone/bb/pkg/auth"
+	"github.com/spf13/cobra"
 )
 
 // Mockable dependencies for testing
 var (
-	authGetClientID        = config.GetClientID
-	authGetClientSecret    = config.GetClientSecret
-	authLogin              = auth.Login
-	authStoreTokens        = auth.StoreTokens
-	authLogout             = auth.Logout
-	authGetStatus          = auth.GetStatus
-	authSetClientCreds     = config.SetClientCredentials
-	authHasStoredTokens    = auth.HasStoredTokens
-	authStdinReader    io.Reader = os.Stdin
+	authGetClientID               = config.GetClientID
+	authGetClientSecret           = config.GetClientSecret
+	authLogin                     = auth.Login
+	authStoreTokens               = auth.StoreTokens
+	authLogout                    = auth.Logout
+	authGetStatus                 = auth.GetStatus
+	authSetClientCreds            = config.SetClientCredentials
+	authHasStoredTokens           = auth.HasStoredTokens
+	authStdinReader     io.Reader = os.Stdin
 )
 
 var (
@@ -48,8 +48,14 @@ You need to create an OAuth consumer in your Bitbucket workspace settings first:
 3. Select permissions: Account, Repositories, Pull requests, Pipelines
 4. Save and note down the Key (client ID) and Secret
 
-Alternative: Set the BITBUCKET_API_TOKEN environment variable with an
-App Password or Repository Access Token to skip the OAuth flow entirely.`,
+Alternative: Set the BITBUCKET_API_TOKEN environment variable to skip the
+OAuth flow entirely:
+  • Atlassian API token (the app-password replacement): also set
+    BITBUCKET_EMAIL — these are sent as HTTP Basic auth (email:token).
+  • Repository/Workspace Access Token: leave BITBUCKET_EMAIL unset — sent
+    as a Bearer token.
+Note: Bitbucket app passwords are deprecated and being removed; create an
+Atlassian API token with scopes instead.`,
 	RunE: runAuthLogin,
 }
 
@@ -164,7 +170,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		output.Info("")
 		output.Info("Options:")
 		output.Info("  • Run 'bb auth login' for OAuth authentication")
-		output.Info("  • Set BITBUCKET_API_TOKEN environment variable")
+		output.Info("  • Set BITBUCKET_API_TOKEN (+ BITBUCKET_EMAIL for an Atlassian API token)")
 		return nil
 	}
 
@@ -172,7 +178,11 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 
 	switch status.Method {
 	case auth.AuthMethodToken:
-		output.Info("Method: BITBUCKET_API_TOKEN environment variable")
+		if status.Scheme == auth.SchemeBasic {
+			output.Info("Method: BITBUCKET_API_TOKEN (Basic auth, BITBUCKET_EMAIL set)")
+		} else {
+			output.Info("Method: BITBUCKET_API_TOKEN (Bearer token)")
+		}
 	case auth.AuthMethodOAuth:
 		output.Info("Method: OAuth 2.0")
 		if status.Scopes != "" {

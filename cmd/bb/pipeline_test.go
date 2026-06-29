@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 )
 
 // resetPipelineMocks restores default implementations
 func resetPipelineMocks() {
 	pipelineNewAPIClient = api.NewClient
+	pipelineLimit = defaultPipelineLimit
 }
 
 func TestRunPipelineList_NoClient(t *testing.T) {
@@ -378,6 +379,85 @@ func TestRunPipelineList_WithPipelines(t *testing.T) {
 	err := runPipelineList(pipelineListCmd, []string{"workspace/repo"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestRunPipelineList_RequestsNewestFirstWithDefaultPageLen(t *testing.T) {
+	defer resetPipelineMocks()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if got := query.Get("sort"); got != "-created_on" {
+			t.Errorf("sort query = %q, want -created_on", got)
+		}
+		if got := query.Get("pagelen"); got != "25" {
+			t.Errorf("pagelen query = %q, want 25", got)
+		}
+
+		result := bitbucket.PaginatedPipelines{}
+		json.NewEncoder(w).Encode(result)
+	}))
+	defer server.Close()
+
+	pipelineNewAPIClient = mockAPIClientFactory(server)
+
+	err := runPipelineList(pipelineListCmd, []string{"workspace/repo"})
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestRunPipelineList_FollowsPaginationUntilLimit(t *testing.T) {
+	defer resetPipelineMocks()
+	pipelineLimit = 3
+
+	requests := 0
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+
+		switch r.URL.Path {
+		case "/repositories/workspace/repo/pipelines":
+			query := r.URL.Query()
+			if got := query.Get("sort"); got != "-created_on" {
+				t.Errorf("sort query = %q, want -created_on", got)
+			}
+			if got := query.Get("pagelen"); got != "3" {
+				t.Errorf("pagelen query = %q, want 3", got)
+			}
+
+			buildNum1 := 3
+			buildNum2 := 2
+			pipelines := []bitbucket.Pipeline{
+				{BuildNumber: &buildNum1},
+				{BuildNumber: &buildNum2},
+			}
+			next := server.URL + "/next"
+			result := bitbucket.PaginatedPipelines{
+				Values: &pipelines,
+				Next:   &next,
+			}
+			json.NewEncoder(w).Encode(result)
+		case "/next":
+			buildNum := 1
+			pipelines := []bitbucket.Pipeline{{BuildNumber: &buildNum}}
+			result := bitbucket.PaginatedPipelines{Values: &pipelines}
+			json.NewEncoder(w).Encode(result)
+		default:
+			t.Errorf("unexpected request path %q", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	pipelineNewAPIClient = mockAPIClientFactory(server)
+
+	err := runPipelineList(pipelineListCmd, []string{"workspace/repo"})
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if requests != 2 {
+		t.Errorf("request count = %d, want 2", requests)
 	}
 }
 

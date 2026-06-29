@@ -7,15 +7,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
 	pipelineBranch string
 	pipelineLimit  int
+)
+
+const (
+	defaultPipelineLimit = 25
+	maxPipelinePageLen   = 100
 )
 
 // Mockable dependencies for testing
@@ -79,7 +84,7 @@ var pipelineLogsCmd = &cobra.Command{
 }
 
 func init() {
-	pipelineListCmd.Flags().IntVarP(&pipelineLimit, "limit", "l", 25, "Maximum number of pipelines to show (0 = all)")
+	pipelineListCmd.Flags().IntVarP(&pipelineLimit, "limit", "l", defaultPipelineLimit, "Maximum number of pipelines to show (0 = all)")
 	pipelineTriggerCmd.Flags().StringVarP(&pipelineBranch, "branch", "b", "", "Branch to run pipeline on (required)")
 	pipelineTriggerCmd.MarkFlagRequired("branch")
 
@@ -104,7 +109,12 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	params := &bitbucket.GetPipelinesForRepositoryParams{}
+	sort := bitbucket.GetPipelinesForRepositoryParamsSort("-created_on")
+	pagelen := pipelinePageLen(pipelineLimit)
+	params := &bitbucket.GetPipelinesForRepositoryParams{
+		Sort:    &sort,
+		Pagelen: &pagelen,
+	}
 
 	resp, err := client.GetPipelinesForRepository(
 		ctx,
@@ -138,6 +148,11 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 		nextResp, err := client.GetURL(ctx, *result.Next)
 		if err != nil {
 			return fmt.Errorf("failed to fetch next page: %w", err)
+		}
+		if nextResp.StatusCode != 200 {
+			status := nextResp.Status
+			nextResp.Body.Close()
+			return fmt.Errorf("API error: %s", status)
 		}
 		result = bitbucket.PaginatedPipelines{}
 		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
@@ -194,6 +209,13 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 	}
 
 	return output.Print(headers, rows, jsonData)
+}
+
+func pipelinePageLen(limit int) int32 {
+	if limit > 0 && limit < maxPipelinePageLen {
+		return int32(limit)
+	}
+	return maxPipelinePageLen
 }
 
 func runPipelineView(cmd *cobra.Command, args []string) error {
