@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/ThomasRedstone/bb/internal/output"
@@ -47,14 +48,15 @@ var commitViewCmd = &cobra.Command{
 func init() {
 	commitListCmd.Flags().StringVar(&commitBranch, "branch", "", "List commits from this branch, tag, or hash")
 	commitListCmd.Flags().IntVar(&commitLimit, "limit", 25, "Maximum number of commits to show")
+	commitActivityCmd.Flags().StringVar(&commitBranch, "branch", "", "Count commits from this branch, tag, or hash")
+	commitActivityCmd.Flags().IntVar(&commitLimit, "limit", 100, "Maximum number of commits to consider")
 
 	commitCmd.AddCommand(commitListCmd)
 	commitCmd.AddCommand(commitViewCmd)
+	commitCmd.AddCommand(commitActivityCmd)
 }
 
 func runCommitList(cmd *cobra.Command, args []string) error {
-	ctx := cmdCtx(cmd)
-
 	client, err := commitNewAPIClient()
 	if err != nil {
 		return err
@@ -64,54 +66,12 @@ func runCommitList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var resp *http.Response
-	if commitBranch != "" {
-		resp, err = client.GetRepositoriesWorkspaceRepoSlugCommitsRevision(ctx, repoCtx.Workspace, repoCtx.RepoSlug, commitBranch)
-	} else {
-		resp, err = client.GetRepositoriesWorkspaceRepoSlugCommits(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
-	}
+	commits, err := fetchCommits(cmd, client, repoCtx, commitBranch, commitLimit)
 	if err != nil {
-		return fmt.Errorf("failed to list commits: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("API error: %s", resp.Status)
+		return err
 	}
 
-	var result struct {
-		Values []commitSummary `json:"values"`
-		Next   string          `json:"next"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Follow pagination only until we have enough for the limit.
-	for result.Next != "" && len(result.Values) < commitLimit {
-		next := result.Next
-		result.Next = ""
-		pageResp, err := client.GetURL(ctx, next)
-		if err != nil {
-			return fmt.Errorf("failed to fetch next page: %w", err)
-		}
-		var page struct {
-			Values []commitSummary `json:"values"`
-			Next   string          `json:"next"`
-		}
-		err = json.NewDecoder(pageResp.Body).Decode(&page)
-		pageResp.Body.Close()
-		if err != nil {
-			return fmt.Errorf("failed to parse page: %w", err)
-		}
-		result.Values = append(result.Values, page.Values...)
-		result.Next = page.Next
-	}
-
-	if len(result.Values) > commitLimit {
-		result.Values = result.Values[:commitLimit]
-	}
-
-	if len(result.Values) == 0 {
+	if len(commits) == 0 {
 		output.Info("No commits found")
 		return nil
 	}
@@ -119,7 +79,7 @@ func runCommitList(cmd *cobra.Command, args []string) error {
 	headers := []string{"HASH", "AUTHOR", "DATE", "MESSAGE"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, c := range result.Values {
+	for _, c := range commits {
 		rows = append(rows, []string{
 			shortHash(c.Hash),
 			c.authorName(),
@@ -170,6 +130,115 @@ func runCommitView(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Date:    %s\n", c.Date)
 	fmt.Printf("Message:\n%s\n", c.Message)
 	return nil
+}
+
+var commitActivityCmd = &cobra.Command{
+	Use:   "activity <workspace/repo>",
+	Short: "Show commit counts per author",
+	Long:  `Summarise commit activity by author over the most recent commits (--limit, --branch).`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  runCommitActivity,
+}
+
+func runCommitActivity(cmd *cobra.Command, args []string) error {
+	client, err := commitNewAPIClient()
+	if err != nil {
+		return err
+	}
+	repoCtx, err := api.ParseRepoContext(args[0])
+	if err != nil {
+		return err
+	}
+
+	commits, err := fetchCommits(cmd, client, repoCtx, commitBranch, commitLimit)
+	if err != nil {
+		return err
+	}
+	if len(commits) == 0 {
+		output.Info("No commits found")
+		return nil
+	}
+
+	// Tally per author, preserving first-seen order for stable output.
+	counts := map[string]int{}
+	var order []string
+	for _, c := range commits {
+		name := c.authorName()
+		if _, seen := counts[name]; !seen {
+			order = append(order, name)
+		}
+		counts[name]++
+	}
+	// Sort by descending count, then name.
+	sort.SliceStable(order, func(i, j int) bool {
+		if counts[order[i]] != counts[order[j]] {
+			return counts[order[i]] > counts[order[j]]
+		}
+		return order[i] < order[j]
+	})
+
+	headers := []string{"AUTHOR", "COMMITS"}
+	var rows [][]string
+	var jsonData []map[string]interface{}
+	for _, name := range order {
+		rows = append(rows, []string{name, fmt.Sprintf("%d", counts[name])})
+		jsonData = append(jsonData, map[string]interface{}{"author": name, "commits": counts[name]})
+	}
+	return output.Print(headers, rows, jsonData)
+}
+
+// fetchCommits returns commits for a repo (optionally a branch/ref), following
+// pagination up to limit.
+func fetchCommits(cmd *cobra.Command, client *api.Client, repoCtx *api.RepoContext, branch string, limit int) ([]commitSummary, error) {
+	ctx := cmdCtx(cmd)
+
+	var resp *http.Response
+	var err error
+	if branch != "" {
+		resp, err = client.GetRepositoriesWorkspaceRepoSlugCommitsRevision(ctx, repoCtx.Workspace, repoCtx.RepoSlug, branch)
+	} else {
+		resp, err = client.GetRepositoriesWorkspaceRepoSlugCommits(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to list commits: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("API error: %s", resp.Status)
+	}
+
+	var result struct {
+		Values []commitSummary `json:"values"`
+		Next   string          `json:"next"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	for result.Next != "" && len(result.Values) < limit {
+		next := result.Next
+		result.Next = ""
+		pageResp, err := client.GetURL(ctx, next)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch next page: %w", err)
+		}
+		var page struct {
+			Values []commitSummary `json:"values"`
+			Next   string          `json:"next"`
+		}
+		err = json.NewDecoder(pageResp.Body).Decode(&page)
+		pageResp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse page: %w", err)
+		}
+		result.Values = append(result.Values, page.Values...)
+		result.Next = page.Next
+	}
+
+	if len(result.Values) > limit {
+		result.Values = result.Values[:limit]
+	}
+	return result.Values, nil
 }
 
 // commitSummary is the subset of a commit we render.

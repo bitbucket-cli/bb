@@ -84,6 +84,25 @@ func TestRunCommitView(t *testing.T) {
 	}
 }
 
+func TestRunCommitActivity(t *testing.T) {
+	defer resetCommitMocks()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"values":[
+			{"hash":"a1","author":{"user":{"display_name":"Tom"}}},
+			{"hash":"a2","author":{"user":{"display_name":"Tom"}}},
+			{"hash":"a3","author":{"raw":"Other <o@x>"}}
+		]}`))
+	}))
+	defer server.Close()
+
+	commitNewAPIClient = mockAPIClientFactory(server)
+	if err := runCommitActivity(commitActivityCmd, []string{"myws/myrepo"}); err != nil {
+		t.Errorf("runCommitActivity error: %v", err)
+	}
+}
+
 func TestCommitHelpers(t *testing.T) {
 	if got := shortHash("abcdef1234567890"); got != "abcdef123456" {
 		t.Errorf("shortHash = %q, want abcdef123456", got)

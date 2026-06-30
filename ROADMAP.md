@@ -108,7 +108,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 #### Reports and Analytics
 - [ ] Pipeline analytics and statistics
-- [ ] Commit activity reports
+- [x] Commit activity reports — `bb commit activity` (commits per author)
 - [ ] PR metrics (time to merge, etc.)
 
 #### Bulk Operations
