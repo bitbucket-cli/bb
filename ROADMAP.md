@@ -125,7 +125,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 ### Testing
 - [ ] Increase test coverage to 90%+
-- [ ] Add integration tests with mock API server
+- [x] Add integration tests with mock API server — full cobra Execute path against httptest (integration_test.go), plus per-command httptest tests
 - [ ] Add end-to-end tests
 
 ### Documentation
