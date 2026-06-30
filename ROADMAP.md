@@ -72,7 +72,7 @@ These must be resolved before a public release. See `review.md` for full details
 - [ ] Interactive branch selection for operations
 
 #### Pipeline Improvements
-- [ ] Stream pipeline logs in real-time
+- [~] Stream pipeline logs in real-time — not feasible: the API returns the full log, no streaming/websocket endpoint
 - [x] Pipeline variable management — `bb variable list/set/delete` (repo pipeline variables)
 - [x] Schedule management — `bb pipeline schedule list/create/view/delete` (create body is best-effort — verify against the live API)
 - [x] Caches management — `bb pipeline cache list/delete` (artifacts download still pending)
@@ -107,7 +107,7 @@ These must be resolved before a public release. See `review.md` for full details
 ### Low Priority
 
 #### Reports and Analytics
-- [ ] Pipeline analytics and statistics
+- [x] Pipeline analytics and statistics — `bb pipeline analytics` (success rate, counts by result)
 - [x] Commit activity reports — `bb commit activity` (commits per author)
 - [x] PR metrics — `bb pr metrics` (count, avg/median time to merge)
 
@@ -117,9 +117,9 @@ These must be resolved before a public release. See `review.md` for full details
 - [x] Export operations (PRs, issues to CSV/JSON) — global `--csv` (and existing `--json`) on every list command
 
 #### Notifications
-- [ ] List notifications
-- [ ] Mark notifications as read
-- [ ] Notification preferences
+- [~] List notifications — not feasible: Bitbucket Cloud has no notifications REST API
+- [~] Mark notifications as read — not feasible: no Bitbucket Cloud notifications API
+- [~] Notification preferences — not feasible: no Bitbucket Cloud notifications API
 
 ## Technical Improvements
 
@@ -144,7 +144,7 @@ These must be resolved before a public release. See `review.md` for full details
 ### Performance
 - [ ] Response caching for frequently accessed data
 - [x] Concurrent API requests where applicable — bulk PR/issue ops run with bounded concurrency (`runConcurrent`)
-- [ ] Lazy loading for large result sets
+- [x] Lazy loading for large result sets — list commands paginate on demand and stop at `--limit`
 
 ### Code Quality
 - [x] Golangci-lint integration — `.golangci.yml` (v2) + CI lint job
