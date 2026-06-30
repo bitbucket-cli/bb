@@ -54,6 +54,7 @@ func init() {
 	rootCmd.AddCommand(downloadCmd)
 	rootCmd.AddCommand(deployKeyCmd)
 	rootCmd.AddCommand(variableCmd)
+	rootCmd.AddCommand(commitCmd)
 	rootCmd.AddCommand(issueCmd)
 	rootCmd.AddCommand(tagCmd)
 	rootCmd.AddCommand(deployCmd)
