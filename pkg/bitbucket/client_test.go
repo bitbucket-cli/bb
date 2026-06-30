@@ -18,6 +18,91 @@ import (
 func resetMocks() {
 	refreshAccessToken = auth.RefreshAccessToken
 	newBitbucketClient = bitbucket.NewClient
+	accessTokenExpiredOrUnknown = auth.AccessTokenExpiredOrUnknown
+}
+
+func TestAuthClientDo_404RefreshRetryWhenExpired(t *testing.T) {
+	defer resetMocks()
+
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusNotFound) // expired session masked as 404
+			return
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer fresh-token" {
+			t.Errorf("retry should carry refreshed token, got %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, "ok")
+	}))
+	defer server.Close()
+
+	accessTokenExpiredOrUnknown = func() bool { return true }
+	refreshAccessToken = func() (*auth.TokenData, error) {
+		return &auth.TokenData{AccessToken: "fresh-token"}, nil
+	}
+
+	client := &authClient{
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "stale-token"},
+		underlying: http.DefaultClient,
+		canRefresh: true,
+	}
+	resp, err := client.Do(mustReq(t, server.URL))
+	if err != nil {
+		t.Fatalf("Do() error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200 after refresh+retry", resp.StatusCode)
+	}
+	if calls != 2 {
+		t.Errorf("expected one retry (2 calls), got %d", calls)
+	}
+}
+
+func TestAuthClientDo_404NotRetriedWhenTokenValid(t *testing.T) {
+	defer resetMocks()
+
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	accessTokenExpiredOrUnknown = func() bool { return false } // healthy token
+	refreshAccessToken = func() (*auth.TokenData, error) {
+		t.Fatal("refresh must not be attempted on a 404 with a valid token")
+		return nil, nil
+	}
+
+	client := &authClient{
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "good-token"},
+		underlying: http.DefaultClient,
+		canRefresh: true,
+	}
+	resp, err := client.Do(mustReq(t, server.URL))
+	if err != nil {
+		t.Fatalf("Do() error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (genuine not-found)", resp.StatusCode)
+	}
+	if calls != 1 {
+		t.Errorf("expected no retry (1 call), got %d", calls)
+	}
+}
+
+func mustReq(t *testing.T, url string) *http.Request {
+	t.Helper()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	return req
 }
 
 func TestParseRepoContext(t *testing.T) {

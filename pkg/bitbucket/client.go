@@ -18,8 +18,9 @@ const baseURL = "https://api.bitbucket.org/2.0"
 
 // For testing - allows mocking
 var (
-	refreshAccessToken = auth.RefreshAccessToken
-	newBitbucketClient = bitbucket.NewClient
+	refreshAccessToken          = auth.RefreshAccessToken
+	newBitbucketClient          = bitbucket.NewClient
+	accessTokenExpiredOrUnknown = auth.AccessTokenExpiredOrUnknown
 )
 
 // Client wraps the generated Bitbucket client with authentication
@@ -80,6 +81,28 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 			req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 		}
 		return c.underlying.Do(req)
+	}
+
+	// Bitbucket returns 404 (not 401) for an expired token hitting a PRIVATE
+	// resource. If the access token is expired or its expiry is unknown, treat a
+	// 404 as a possibly-masked auth failure: refresh once and retry. A token with
+	// a known, valid expiry skips this, so genuine 404s aren't retried. On refresh
+	// failure we fall through and return the original 404.
+	if resp.StatusCode == http.StatusNotFound && cred.Token != "" && c.canRefresh && accessTokenExpiredOrUnknown() {
+		if newTokens, rErr := refreshAccessToken(); rErr == nil {
+			resp.Body.Close()
+
+			refreshed := auth.Credential{Scheme: auth.SchemeBearer, Token: newTokens.AccessToken}
+			c.tokenMu.Lock()
+			c.cred = refreshed
+			c.tokenMu.Unlock()
+
+			refreshed.Apply(req)
+			if bodySnapshot != nil {
+				req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
+			}
+			return c.underlying.Do(req)
+		}
 	}
 
 	return resp, nil

@@ -47,6 +47,22 @@ func (t *TokenData) NeedsRefresh() bool {
 	return time.Now().Unix() >= t.ExpiresAt-refreshBufferSeconds
 }
 
+// AccessTokenExpiredOrUnknown reports whether the stored OAuth access token has
+// expired (or is within the refresh buffer of expiring), or whether its expiry
+// is unknown (ExpiresAt == 0, e.g. stored by an older version). Used to decide
+// whether a 404 — which Bitbucket returns for expired access to private
+// resources — is worth a refresh-and-retry rather than a genuine not-found.
+func AccessTokenExpiredOrUnknown() bool {
+	tokens, err := LoadTokens()
+	if err != nil || tokens.AccessToken == "" {
+		return false
+	}
+	if tokens.ExpiresAt == 0 {
+		return true
+	}
+	return tokens.NeedsRefresh()
+}
+
 // StoreTokens saves tokens to the system keyring
 func StoreTokens(data *TokenData) error {
 	// Record an absolute expiry so callers can refresh proactively rather than

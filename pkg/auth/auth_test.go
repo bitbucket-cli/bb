@@ -332,6 +332,41 @@ func TestGetValidToken_APIToken(t *testing.T) {
 	}
 }
 
+func TestAccessTokenExpiredOrUnknown(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	now := time.Now().Unix()
+
+	cases := []struct {
+		name  string
+		token *TokenData
+		want  bool
+	}{
+		{"unknown expiry (old token)", &TokenData{AccessToken: "a", ExpiresAt: 0}, true},
+		{"expired", &TokenData{AccessToken: "a", ExpiresAt: now - 10}, true},
+		{"valid", &TokenData{AccessToken: "a", ExpiresAt: now + 3600}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// store without recomputing ExpiresAt from ExpiresIn (it's 0 here)
+			if err := StoreTokens(c.token); err != nil {
+				t.Fatalf("StoreTokens: %v", err)
+			}
+			if got := AccessTokenExpiredOrUnknown(); got != c.want {
+				t.Errorf("AccessTokenExpiredOrUnknown() = %v, want %v", got, c.want)
+			}
+		})
+	}
+
+	t.Run("no tokens", func(t *testing.T) {
+		DeleteTokens()
+		if AccessTokenExpiredOrUnknown() {
+			t.Error("want false when not logged in")
+		}
+	})
+}
+
 func TestTokenDataNeedsRefresh(t *testing.T) {
 	now := time.Now().Unix()
 	cases := []struct {
