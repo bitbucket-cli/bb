@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +47,7 @@ func runPRThreads(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}

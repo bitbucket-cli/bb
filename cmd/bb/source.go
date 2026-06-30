@@ -79,7 +79,7 @@ func runSourceList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func runSourceView(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}

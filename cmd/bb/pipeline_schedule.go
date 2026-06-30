@@ -7,7 +7,6 @@ import (
 
 	generated "github.com/ThomasRedstone/bb/generated/bitbucket"
 	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -106,7 +105,7 @@ func runPipelineScheduleList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -158,7 +157,7 @@ func runPipelineScheduleCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -207,7 +206,7 @@ func runPipelineScheduleView(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -244,7 +243,7 @@ func runPipelineScheduleDelete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -269,7 +268,7 @@ func runPipelineCacheList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -317,7 +316,7 @@ func runPipelineCacheDelete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}

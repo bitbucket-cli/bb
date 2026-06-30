@@ -46,6 +46,7 @@ To get started, run:
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 	rootCmd.PersistentFlags().BoolVar(&csvOutput, "csv", false, "Output in CSV format")
+	rootCmd.PersistentFlags().StringVarP(&repoOverride, "repo", "R", "", "Target repository as workspace/repo (default: detected from the current git remote)")
 
 	// Add subcommands
 	rootCmd.AddCommand(authCmd)
