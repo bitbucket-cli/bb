@@ -89,7 +89,7 @@ These must be resolved before a public release. See `review.md` for full details
 - [~] Repository settings management — read views added: `bb repo branching-model`, `bb repo permissions [--groups]`, `bb repo forks` (write/update still pending)
 - [x] Access keys (SSH keys) management — `bb deploy-key list/add/view/delete`
 - [x] Repository variables for pipelines — `bb variable list/set/delete`
-- [ ] Branch merge strategies configuration
+- [~] Branch merge strategies configuration — not feasible: no merge-strategy/pullrequest-settings endpoint in the generated API spec
 
 #### Snippets Support
 - [x] List snippets — `bb snippet list [workspace] [--role]`, paginated
@@ -124,13 +124,13 @@ These must be resolved before a public release. See `review.md` for full details
 ## Technical Improvements
 
 ### Testing
-- [ ] Increase test coverage to 90%+
+- [~] Increase test coverage to 90%+ — ongoing: config/output/auth 90%+, cmd/bb ~80%; every command has httptest coverage
 - [x] Add integration tests with mock API server — full cobra Execute path against httptest (integration_test.go), plus per-command httptest tests
-- [ ] Add end-to-end tests
+- [~] End-to-end tests — cobra-Execute integration tests added (integration_test.go); live e2e vs the real API needs credentials, out of CI scope
 
 ### Documentation
 - [x] Man pages generation — hidden `bb man <dir>` (cobra/doc)
-- [ ] Comprehensive README with examples
+- [x] Comprehensive README with examples — per-resource examples incl. all new commands
 - [x] Contributing guide — CONTRIBUTING.md
 - [x] API documentation — `bb man <dir> --format markdown` (cobra/doc) generates per-command reference
 
@@ -142,7 +142,7 @@ These must be resolved before a public release. See `review.md` for full details
 - [x] Scoop manifest for Windows — goreleaser scoops (needs a scoop-bucket repo + token, like the Homebrew tap)
 
 ### Performance
-- [ ] Response caching for frequently accessed data
+- [~] Response caching — not applicable: bb is a stateless single-shot CLI; superseded by on-demand pagination + --limit
 - [x] Concurrent API requests where applicable — bulk PR/issue ops run with bounded concurrency (`runConcurrent`)
 - [x] Lazy loading for large result sets — list commands paginate on demand and stop at `--limit`
 
