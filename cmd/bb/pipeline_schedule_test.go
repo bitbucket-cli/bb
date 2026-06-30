@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -51,6 +52,37 @@ func TestRunPipelineScheduleList(t *testing.T) {
 	pipelineNewAPIClient = mockAPIClientFactory(server)
 	if err := runPipelineScheduleList(pipelineScheduleListCmd, []string{"myws/myrepo"}); err != nil {
 		t.Errorf("runPipelineScheduleList error: %v", err)
+	}
+}
+
+func TestRunPipelineScheduleCreate(t *testing.T) {
+	defer func() {
+		resetPipelineScheduleMocks()
+		scheduleBranch, scheduleCron, scheduleDisabled = "", "", false
+	}()
+
+	var gotBody map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"uuid":"{new}"}`))
+	}))
+	defer server.Close()
+
+	pipelineNewAPIClient = mockAPIClientFactory(server)
+	scheduleBranch = "main"
+	scheduleCron = "0 0 6 * * ? *"
+	if err := runPipelineScheduleCreate(pipelineScheduleCreateCmd, []string{"myws/myrepo"}); err != nil {
+		t.Fatalf("runPipelineScheduleCreate error: %v", err)
+	}
+	if gotBody["cron_pattern"] != "0 0 6 * * ? *" {
+		t.Errorf("cron_pattern = %v, want the cron", gotBody["cron_pattern"])
+	}
+	if gotBody["enabled"] != true {
+		t.Errorf("enabled = %v, want true", gotBody["enabled"])
 	}
 }
 

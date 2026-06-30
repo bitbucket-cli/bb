@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -8,6 +9,12 @@ import (
 	"github.com/ThomasRedstone/bb/internal/output"
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
+)
+
+var (
+	scheduleCron     string
+	scheduleBranch   string
+	scheduleDisabled bool
 )
 
 var pipelineScheduleCmd = &cobra.Command{
@@ -22,6 +29,20 @@ var pipelineScheduleListCmd = &cobra.Command{
 	Short: "List pipeline schedules",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runPipelineScheduleList,
+}
+
+var pipelineScheduleCreateCmd = &cobra.Command{
+	Use:   "create <workspace/repo>",
+	Short: "Create a pipeline schedule",
+	Long: `Create a pipeline schedule that runs a branch's pipeline on a cron.
+
+Best-effort: the request schema (target/selector) follows the Bitbucket docs —
+verify the created schedule in the Bitbucket UI.
+
+Example:
+  bb pipeline schedule create myws/myrepo --branch main --cron "0 0 6 * * ? *"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPipelineScheduleCreate,
 }
 
 var pipelineScheduleViewCmd = &cobra.Command{
@@ -60,7 +81,14 @@ var pipelineCacheDeleteCmd = &cobra.Command{
 }
 
 func init() {
+	pipelineScheduleCreateCmd.Flags().StringVar(&scheduleBranch, "branch", "", "Branch whose pipeline to schedule (required)")
+	pipelineScheduleCreateCmd.Flags().StringVar(&scheduleCron, "cron", "", "Cron pattern (required)")
+	pipelineScheduleCreateCmd.Flags().BoolVar(&scheduleDisabled, "disabled", false, "Create the schedule disabled")
+	pipelineScheduleCreateCmd.MarkFlagRequired("branch")
+	pipelineScheduleCreateCmd.MarkFlagRequired("cron")
+
 	pipelineScheduleCmd.AddCommand(pipelineScheduleListCmd)
+	pipelineScheduleCmd.AddCommand(pipelineScheduleCreateCmd)
 	pipelineScheduleCmd.AddCommand(pipelineScheduleViewCmd)
 	pipelineScheduleCmd.AddCommand(pipelineScheduleDeleteCmd)
 
@@ -121,6 +149,55 @@ func runPipelineScheduleList(cmd *cobra.Command, args []string) error {
 		})
 	}
 	return output.Print(headers, rows, jsonData)
+}
+
+func runPipelineScheduleCreate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
+	client, err := pipelineNewAPIClient()
+	if err != nil {
+		return err
+	}
+	repoCtx, err := api.ParseRepoContext(args[0])
+	if err != nil {
+		return err
+	}
+
+	// Best-effort body per the Bitbucket pipeline-schedule docs.
+	payload := map[string]interface{}{
+		"type":    "pipeline_schedule",
+		"enabled": !scheduleDisabled,
+		"target": map[string]interface{}{
+			"type":     "pipeline_ref_target",
+			"ref_type": "branch",
+			"ref_name": scheduleBranch,
+			"selector": map[string]interface{}{
+				"type":    "branches",
+				"pattern": scheduleBranch,
+			},
+		},
+		"cron_pattern": scheduleCron,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.CreateRepositoryPipelineScheduleWithBody(ctx, repoCtx.Workspace, repoCtx.RepoSlug, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create schedule: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		var errResp map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&errResp)
+		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
+	}
+
+	var s pipelineSchedule
+	json.NewDecoder(resp.Body).Decode(&s)
+	output.Success("Created schedule %s", s.UUID)
+	return nil
 }
 
 func runPipelineScheduleView(cmd *cobra.Command, args []string) error {
