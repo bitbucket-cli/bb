@@ -296,6 +296,66 @@ func TestRunAuthLogin_WithCredentials_LoginFails(t *testing.T) {
 	}
 }
 
+func TestRunAuthLogin_CallbackURL(t *testing.T) {
+	defer resetAuthMocks()
+	defer func() {
+		authExchangeCallbackURL = auth.ExchangeCallbackURL
+		authFlagCallbackURL = ""
+	}()
+
+	authGetClientID = func() string { return "test-id" }
+	authGetClientSecret = func() string { return "test-secret" }
+	var exchanged string
+	authExchangeCallbackURL = func(cfg auth.OAuthConfig, state, pasted string) (*auth.TokenData, error) {
+		exchanged = pasted
+		return &auth.TokenData{AccessToken: "tok"}, nil
+	}
+	stored := false
+	authStoreTokens = func(tokens *auth.TokenData) error { stored = true; return nil }
+
+	authFlagCallbackURL = "http://localhost:34106/callback?code=ABC&state=X"
+	if err := runAuthLogin(authLoginCmd, []string{}); err != nil {
+		t.Fatalf("runAuthLogin error: %v", err)
+	}
+	if exchanged != authFlagCallbackURL {
+		t.Errorf("exchanged = %q, want the pasted URL", exchanged)
+	}
+	if !stored {
+		t.Error("expected tokens to be stored")
+	}
+}
+
+func TestRunAuthLogin_Manual(t *testing.T) {
+	defer resetAuthMocks()
+	defer func() {
+		authBuildAuthorizeURL = auth.BuildAuthorizeURL
+		authExchangeCallbackURL = auth.ExchangeCallbackURL
+		authFlagManual = false
+		authStdinReader = os.Stdin
+	}()
+
+	authGetClientID = func() string { return "id" }
+	authGetClientSecret = func() string { return "secret" }
+	authBuildAuthorizeURL = func(cfg auth.OAuthConfig) (string, string, error) {
+		return "https://auth.example/authorize?state=ST", "ST", nil
+	}
+	gotState := ""
+	authExchangeCallbackURL = func(cfg auth.OAuthConfig, state, pasted string) (*auth.TokenData, error) {
+		gotState = state
+		return &auth.TokenData{AccessToken: "tok"}, nil
+	}
+	authStoreTokens = func(tokens *auth.TokenData) error { return nil }
+
+	authFlagManual = true
+	authStdinReader = strings.NewReader("http://localhost:34106/callback?code=C&state=ST\n")
+	if err := runAuthLogin(authLoginCmd, []string{}); err != nil {
+		t.Fatalf("runAuthLogin error: %v", err)
+	}
+	if gotState != "ST" {
+		t.Errorf("state passed to exchange = %q, want ST", gotState)
+	}
+}
+
 func TestRunAuthLogin_WithCredentials_StoreTokensFails(t *testing.T) {
 	defer resetAuthMocks()
 

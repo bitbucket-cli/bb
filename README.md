@@ -80,6 +80,11 @@ bb auth login
 # Pass credentials directly (note: visible in shell history — prefer env vars)
 bb auth login --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 
+# Over SSH / no browser: print the URL, paste back the redirect
+bb auth login --manual
+# Or exchange a callback URL you already have:
+bb auth login --callback-url "http://localhost:34106/callback?code=...&state=..."
+
 # Using environment variables (recommended)
 export BB_CLIENT_ID=your_client_id
 export BB_CLIENT_SECRET=your_client_secret

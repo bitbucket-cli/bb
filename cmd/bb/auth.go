@@ -15,23 +15,27 @@ import (
 
 // Mockable dependencies for testing
 var (
-	authGetClientID               = config.GetClientID
-	authGetClientSecret           = config.GetClientSecret
-	authLogin                     = auth.Login
-	authStoreTokens               = auth.StoreTokens
-	authLogout                    = auth.Logout
-	authGetStatus                 = auth.GetStatus
-	authSetClientCreds            = config.SetClientCredentials
-	authHasStoredTokens           = auth.HasStoredTokens
-	authGetScopes                 = config.GetScopes
-	authSetScopes                 = config.SetScopes
-	authStdinReader     io.Reader = os.Stdin
+	authGetClientID                   = config.GetClientID
+	authGetClientSecret               = config.GetClientSecret
+	authLogin                         = auth.Login
+	authStoreTokens                   = auth.StoreTokens
+	authLogout                        = auth.Logout
+	authGetStatus                     = auth.GetStatus
+	authSetClientCreds                = config.SetClientCredentials
+	authHasStoredTokens               = auth.HasStoredTokens
+	authGetScopes                     = config.GetScopes
+	authSetScopes                     = config.SetScopes
+	authBuildAuthorizeURL             = auth.BuildAuthorizeURL
+	authExchangeCallbackURL           = auth.ExchangeCallbackURL
+	authStdinReader         io.Reader = os.Stdin
 )
 
 var (
 	authFlagClientID     string
 	authFlagClientSecret string
 	authFlagScopes       string
+	authFlagManual       bool
+	authFlagCallbackURL  string
 )
 
 var authCmd = &cobra.Command{
@@ -66,6 +70,14 @@ Scopes (--scopes):
   control is which permissions you grant the consumer in step 3 — pick a level
   here that matches it, and login will fail fast if they don't line up.
 
+Over SSH / no browser (--manual):
+  The callback normally lands on a local server (http://localhost:34106). Over
+  SSH that server is on the remote host, so the redirect can't reach it. Use
+  --manual: bb prints the authorize URL, you open it in any browser, and after
+  authorizing you paste the URL you were redirected to (the localhost page won't
+  load — just copy its address from the browser). bb extracts the code from it.
+  Or pass it non-interactively with --callback-url "<pasted-url-or-code>".
+
 Alternative: Set the BITBUCKET_API_TOKEN environment variable to skip the
 OAuth flow entirely:
   • Atlassian API token (the app-password replacement): also set
@@ -95,6 +107,8 @@ func init() {
 	authLoginCmd.Flags().StringVar(&authFlagClientID, "client-id", "", "OAuth client ID (Key) — avoid shell history: prefer BB_CLIENT_ID env var")
 	authLoginCmd.Flags().StringVar(&authFlagClientSecret, "client-secret", "", "OAuth client secret — avoid shell history: prefer BB_CLIENT_SECRET env var")
 	authLoginCmd.Flags().StringVar(&authFlagScopes, "scopes", "", fmt.Sprintf("scope level (%s) or explicit comma-separated list; default %q (persisted to config)", strings.Join(auth.ScopePresetNames(), "|"), auth.DefaultScopeLevel))
+	authLoginCmd.Flags().BoolVar(&authFlagManual, "manual", false, "No local callback server — print the URL and paste back the redirected URL (useful over SSH)")
+	authLoginCmd.Flags().StringVar(&authFlagCallbackURL, "callback-url", "", "Complete login directly from a pasted callback URL (or code), skipping the browser/server")
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authStatusCmd)
@@ -164,7 +178,27 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 		Scopes:       scopes,
 	}
 
-	tokens, err := authLogin(oauthCfg)
+	var tokens *auth.TokenData
+	switch {
+	case authFlagCallbackURL != "":
+		// Exchange directly from a pasted callback URL / code (no state to check).
+		tokens, err = authExchangeCallbackURL(oauthCfg, "", authFlagCallbackURL)
+	case authFlagManual:
+		// No local callback server — print the URL and read the redirect back.
+		authURL, state, berr := authBuildAuthorizeURL(oauthCfg)
+		if berr != nil {
+			return fmt.Errorf("login failed: %w", berr)
+		}
+		output.Info("Open this URL, authorize, then paste the URL you were redirected to")
+		output.Info("(the localhost page won't load over SSH — just copy its address):")
+		fmt.Println(authURL)
+		fmt.Print("\nPaste callback URL (or code): ")
+		reader := bufio.NewReader(authStdinReader)
+		pasted, _ := reader.ReadString('\n')
+		tokens, err = authExchangeCallbackURL(oauthCfg, state, pasted)
+	default:
+		tokens, err = authLogin(oauthCfg)
+	}
 	if err != nil {
 		return fmt.Errorf("login failed: %w", err)
 	}

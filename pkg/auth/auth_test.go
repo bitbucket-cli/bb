@@ -580,6 +580,65 @@ func TestRefreshAccessToken_NoClientCredentials(t *testing.T) {
 	}
 }
 
+func TestBuildAuthorizeURL(t *testing.T) {
+	defer resetMocks()
+	u, state, err := BuildAuthorizeURL(OAuthConfig{ClientID: "cid", ClientSecret: "sec", Scopes: []string{"account"}})
+	if err != nil {
+		t.Fatalf("BuildAuthorizeURL error: %v", err)
+	}
+	if state == "" {
+		t.Error("expected a non-empty state")
+	}
+	if !strings.Contains(u, "client_id=cid") || !strings.Contains(u, "state="+state) {
+		t.Errorf("authorize URL missing client_id/state: %s", u)
+	}
+
+	if _, _, err := BuildAuthorizeURL(OAuthConfig{}); err == nil {
+		t.Error("expected error without client credentials")
+	}
+}
+
+func TestExchangeCallbackURL(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	defer resetMocks()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token":  "acc",
+			"refresh_token": "ref",
+			"expires_in":    7200,
+			"token_type":    "Bearer",
+		})
+	}))
+	defer server.Close()
+	tokenURL = server.URL
+
+	cfg := OAuthConfig{ClientID: "id", ClientSecret: "secret"}
+
+	// Full callback URL with matching state.
+	tokens, err := ExchangeCallbackURL(cfg, "st8", "http://localhost:34106/callback?state=st8&code=THECODE")
+	if err != nil || tokens.AccessToken != "acc" {
+		t.Fatalf("ExchangeCallbackURL(full url) = %+v, %v", tokens, err)
+	}
+
+	// Bare code (no URL) skips state validation.
+	if _, err := ExchangeCallbackURL(cfg, "st8", "BARECODE"); err != nil {
+		t.Errorf("ExchangeCallbackURL(bare code) error: %v", err)
+	}
+
+	// State mismatch is rejected.
+	if _, err := ExchangeCallbackURL(cfg, "st8", "http://x/callback?state=WRONG&code=Y"); err == nil {
+		t.Error("expected a state mismatch error")
+	}
+
+	// Empty input is rejected.
+	if _, err := ExchangeCallbackURL(cfg, "", ""); err == nil {
+		t.Error("expected an error for empty input")
+	}
+}
+
 func TestRefreshAccessToken_PreservesRefreshTokenWhenOmitted(t *testing.T) {
 	cleanup := setupTestHome(t)
 	defer cleanup()
