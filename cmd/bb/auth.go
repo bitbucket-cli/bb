@@ -257,6 +257,14 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		} else {
 			output.Info("Method: BITBUCKET_API_TOKEN (Bearer token)")
 		}
+		if auth.LikelyAtlassianTokenWithoutEmail() {
+			output.Error("⚠ BITBUCKET_API_TOKEN looks like an Atlassian API token, but BITBUCKET_EMAIL is not set.")
+			output.Error("  Atlassian tokens need Basic auth — set BITBUCKET_EMAIL=<your-account-email>, or unset")
+			output.Error("  BITBUCKET_API_TOKEN to use your OAuth login. (The env token takes precedence over OAuth.)")
+		} else if authHasStoredTokens() {
+			output.Info("Note: an OAuth login is also stored, but BITBUCKET_API_TOKEN takes precedence.")
+			output.Info("      Unset BITBUCKET_API_TOKEN to use the OAuth session (which auto-refreshes).")
+		}
 	case auth.AuthMethodOAuth:
 		output.Info("Method: OAuth 2.0")
 		if status.Scopes != "" {
