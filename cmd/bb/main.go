@@ -51,6 +51,7 @@ func init() {
 	rootCmd.AddCommand(pipelineCmd)
 	rootCmd.AddCommand(webhookCmd)
 	rootCmd.AddCommand(snippetCmd)
+	rootCmd.AddCommand(downloadCmd)
 	rootCmd.AddCommand(issueCmd)
 	rootCmd.AddCommand(tagCmd)
 	rootCmd.AddCommand(deployCmd)

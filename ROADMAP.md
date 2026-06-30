@@ -94,9 +94,10 @@ These must be resolved before a public release. See `review.md` for full details
 - [ ] Update snippets — deferred: generated client has no multipart `PUT` variant
 
 #### Downloads
-- [ ] List repository downloads
-- [ ] Upload files to downloads
-- [ ] Delete downloads
+- [x] List repository downloads — `bb download list <workspace/repo>`, paginated
+- [x] Upload files to downloads — `bb download upload <workspace/repo> <files...>`
+- [x] Delete downloads — `bb download delete <workspace/repo> <filename>`
+- [x] Fetch a download — `bb download get <workspace/repo> <filename> [-o path]`
 
 ### Low Priority
 
