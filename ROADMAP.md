@@ -87,10 +87,11 @@ These must be resolved before a public release. See `review.md` for full details
 - [ ] Branch merge strategies configuration
 
 #### Snippets Support
-- [ ] List snippets
-- [ ] Create snippets from files or stdin
-- [ ] View snippet content
-- [ ] Update and delete snippets
+- [x] List snippets — `bb snippet list [workspace] [--role]`, paginated
+- [x] Create snippets from files or stdin — `bb snippet create` (multipart, `--title`/`--private`/`--filename`)
+- [x] View snippet content — `bb snippet view <workspace> <id>`
+- [x] Delete snippets — `bb snippet delete <workspace> <id>`
+- [ ] Update snippets — deferred: generated client has no multipart `PUT` variant
 
 #### Downloads
 - [ ] List repository downloads

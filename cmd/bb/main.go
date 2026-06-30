@@ -50,6 +50,7 @@ func init() {
 	rootCmd.AddCommand(branchCmd)
 	rootCmd.AddCommand(pipelineCmd)
 	rootCmd.AddCommand(webhookCmd)
+	rootCmd.AddCommand(snippetCmd)
 	rootCmd.AddCommand(issueCmd)
 	rootCmd.AddCommand(tagCmd)
 	rootCmd.AddCommand(deployCmd)
