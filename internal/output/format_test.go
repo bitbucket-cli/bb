@@ -108,6 +108,39 @@ func TestPrint_JSON(t *testing.T) {
 	}
 }
 
+func TestPrint_CSV(t *testing.T) {
+	CurrentFormat = FormatCSV
+	defer func() { CurrentFormat = FormatTable }()
+
+	headers := []string{"COL1", "COL2"}
+	rows := [][]string{{"a", "b"}, {"c,d", "e"}}
+
+	out := captureStdout(func() {
+		if err := Print(headers, rows, nil); err != nil {
+			t.Errorf("Print() error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "COL1,COL2") {
+		t.Errorf("CSV output should contain header row, got: %q", out)
+	}
+	if !strings.Contains(out, "a,b") {
+		t.Errorf("CSV output should contain data row, got: %q", out)
+	}
+	// A field containing a comma must be quoted.
+	if !strings.Contains(out, `"c,d"`) {
+		t.Errorf("CSV should quote comma-containing fields, got: %q", out)
+	}
+}
+
+func TestSetFormat_CSV(t *testing.T) {
+	defer func() { CurrentFormat = FormatTable }()
+	SetFormat("csv")
+	if CurrentFormat != FormatCSV {
+		t.Errorf("SetFormat(csv) = %v, want FormatCSV", CurrentFormat)
+	}
+}
+
 func TestPrint_Table(t *testing.T) {
 	CurrentFormat = FormatTable
 
@@ -258,14 +291,14 @@ func TestTruncate(t *testing.T) {
 		max      int
 		expected string
 	}{
-		{"hello", 10, "hello"},           // no truncation needed
-		{"hello", 5, "hello"},            // exact length
-		{"hello world", 8, "hello..."},   // truncated with ellipsis
-		{"hello", 3, "hel"},              // max <= 3, no ellipsis
-		{"hello", 2, "he"},               // max < 3
-		{"hello", 0, ""},                 // edge case
-		{"", 5, ""},                      // empty string
-		{"abcdefghij", 7, "abcd..."},     // normal truncation
+		{"hello", 10, "hello"},         // no truncation needed
+		{"hello", 5, "hello"},          // exact length
+		{"hello world", 8, "hello..."}, // truncated with ellipsis
+		{"hello", 3, "hel"},            // max <= 3, no ellipsis
+		{"hello", 2, "he"},             // max < 3
+		{"hello", 0, ""},               // edge case
+		{"", 5, ""},                    // empty string
+		{"abcdefghij", 7, "abcd..."},   // normal truncation
 	}
 
 	for _, tt := range tests {

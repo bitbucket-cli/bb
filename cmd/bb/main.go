@@ -13,6 +13,7 @@ import (
 var (
 	version    = "dev"
 	jsonOutput bool
+	csvOutput  bool
 	osExit     = os.Exit // Mockable for testing
 )
 
@@ -34,6 +35,8 @@ To get started, run:
 		// Set output format
 		if jsonOutput {
 			output.SetFormat("json")
+		} else if csvOutput {
+			output.SetFormat("csv")
 		}
 
 		return nil
@@ -42,6 +45,7 @@ To get started, run:
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+	rootCmd.PersistentFlags().BoolVar(&csvOutput, "csv", false, "Output in CSV format")
 
 	// Add subcommands
 	rootCmd.AddCommand(authCmd)

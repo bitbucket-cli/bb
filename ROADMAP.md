@@ -114,7 +114,7 @@ These must be resolved before a public release. See `review.md` for full details
 #### Bulk Operations
 - [ ] Bulk PR operations (approve multiple, merge multiple)
 - [ ] Bulk issue updates
-- [ ] Export operations (PRs, issues to CSV/JSON)
+- [x] Export operations (PRs, issues to CSV/JSON) — global `--csv` (and existing `--json`) on every list command
 
 #### Notifications
 - [ ] List notifications
