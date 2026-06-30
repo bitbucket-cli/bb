@@ -679,18 +679,24 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	commentBody := map[string]interface{}{
-		"content": map[string]interface{}{
-			"raw": prComment,
-		},
+	if err := postPRComment(ctx, client, repoCtx, prID, prComment, prCommentPath, prCommentLine); err != nil {
+		return err
 	}
 
-	// Inline comment: anchor it to a file (and optionally a line in the new
-	// version of that file).
-	if prCommentPath != "" {
-		inline := map[string]interface{}{"path": prCommentPath}
-		if prCommentLine > 0 {
-			inline["to"] = prCommentLine
+	output.Success("Added comment to pull request #%d", prID)
+	return nil
+}
+
+// postPRComment adds a comment to a pull request, optionally anchored inline to
+// a file path and line (in the new version of the file).
+func postPRComment(ctx context.Context, client *api.Client, repoCtx *api.RepoContext, prID int, text, path string, line int) error {
+	commentBody := map[string]interface{}{
+		"content": map[string]interface{}{"raw": text},
+	}
+	if path != "" {
+		inline := map[string]interface{}{"path": path}
+		if line > 0 {
+			inline["to"] = line
 		}
 		commentBody["inline"] = inline
 	}
@@ -701,13 +707,7 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdCommentsWithBody(
-		ctx,
-		repoCtx.Workspace,
-		repoCtx.RepoSlug,
-		prID,
-		"application/json",
-		bytesReader(body),
-	)
+		ctx, repoCtx.Workspace, repoCtx.RepoSlug, prID, "application/json", bytesReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to add comment: %w", err)
 	}
@@ -718,8 +718,6 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 		json.NewDecoder(resp.Body).Decode(&errResp)
 		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
 	}
-
-	output.Success("Added comment to pull request #%d", prID)
 	return nil
 }
 

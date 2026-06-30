@@ -10,7 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var prRequestChangesRemove bool
+var (
+	prRequestChangesRemove  bool
+	prRequestChangesComment string
+)
 
 var prRequestChangesCmd = &cobra.Command{
 	Use:   "request-changes <workspace/repo> [pr-number]",
@@ -25,6 +28,7 @@ interactively when pr-number is omitted.`,
 
 func init() {
 	prRequestChangesCmd.Flags().BoolVar(&prRequestChangesRemove, "remove", false, "Withdraw a previous request-changes")
+	prRequestChangesCmd.Flags().StringVar(&prRequestChangesComment, "comment", "", "Post this comment alongside the request-changes")
 	prRequestChangesCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 	prCmd.AddCommand(prRequestChangesCmd)
 }
@@ -46,6 +50,13 @@ func runPRRequestChanges(cmd *cobra.Command, args []string) error {
 	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
 	if err != nil {
 		return err
+	}
+
+	// Optionally leave a comment explaining the requested changes first.
+	if prRequestChangesComment != "" && !prRequestChangesRemove {
+		if err := postPRComment(ctx, client, repoCtx, prID, prRequestChangesComment, "", 0); err != nil {
+			return err
+		}
 	}
 
 	var resp *http.Response
