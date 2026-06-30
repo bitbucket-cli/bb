@@ -127,6 +127,41 @@ func TestRunSnippetCreate_NoInput(t *testing.T) {
 	}
 }
 
+func TestRunSnippetUpdate(t *testing.T) {
+	defer resetSnippetMocks()
+
+	var gotMethod, gotContentType, gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotContentType = r.Header.Get("Content-Type")
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"abc123"}`))
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "snippet.txt")
+	if err := os.WriteFile(path, []byte("updated"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	snippetNewAPIClient = mockAPIClientFactory(server)
+	snippetTitle = "renamed"
+	if err := runSnippetUpdate(snippetUpdateCmd, []string{"myws", "abc123", path}); err != nil {
+		t.Fatalf("runSnippetUpdate error: %v", err)
+	}
+	if gotMethod != http.MethodPut {
+		t.Errorf("method = %s, want PUT", gotMethod)
+	}
+	if !strings.HasPrefix(gotContentType, "multipart/form-data") {
+		t.Errorf("content-type = %q, want multipart/form-data", gotContentType)
+	}
+	if gotPath != "/snippets/myws/abc123" {
+		t.Errorf("path = %q, want /snippets/myws/abc123", gotPath)
+	}
+}
+
 func TestRunSnippetDelete(t *testing.T) {
 	defer resetSnippetMocks()
 

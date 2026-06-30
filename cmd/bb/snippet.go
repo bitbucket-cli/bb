@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -71,6 +72,17 @@ file that exists. Pass --private to make the snippet private.`,
 	RunE: runSnippetCreate,
 }
 
+var snippetUpdateCmd = &cobra.Command{
+	Use:   "update <workspace> <snippet-id> [files...]",
+	Short: "Update a snippet",
+	Long: `Update a snippet's files and/or title.
+
+Replaces the snippet's contents with the given files, or with stdin via
+--filename. Use --title to rename it.`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runSnippetUpdate,
+}
+
 var snippetDeleteCmd = &cobra.Command{
 	Use:   "delete <workspace> <snippet-id>",
 	Short: "Delete a snippet",
@@ -84,11 +96,93 @@ func init() {
 	snippetCreateCmd.Flags().StringVarP(&snippetTitle, "title", "t", "", "Snippet title")
 	snippetCreateCmd.Flags().BoolVar(&snippetPrivate, "private", false, "Make the snippet private")
 	snippetCreateCmd.Flags().StringVar(&snippetFilename, "filename", "", "Filename to use when reading content from stdin")
+	snippetUpdateCmd.Flags().StringVarP(&snippetTitle, "title", "t", "", "New snippet title")
+	snippetUpdateCmd.Flags().BoolVar(&snippetPrivate, "private", false, "Make the snippet private")
+	snippetUpdateCmd.Flags().StringVar(&snippetFilename, "filename", "", "Filename to use when reading content from stdin")
 
 	snippetCmd.AddCommand(snippetListCmd)
 	snippetCmd.AddCommand(snippetViewCmd)
 	snippetCmd.AddCommand(snippetCreateCmd)
+	snippetCmd.AddCommand(snippetUpdateCmd)
 	snippetCmd.AddCommand(snippetDeleteCmd)
+}
+
+// buildSnippetMultipart assembles the multipart body shared by snippet create
+// and update, from the given file paths plus the title/private/filename flags.
+func buildSnippetMultipart(files []string) (*bytes.Buffer, string, error) {
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	if snippetTitle != "" {
+		_ = mw.WriteField("title", snippetTitle)
+	}
+	_ = mw.WriteField("is_private", strconv.FormatBool(snippetPrivate))
+
+	for _, path := range files {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, "", fmt.Errorf("opening %s: %w", path, err)
+		}
+		part, err := mw.CreateFormFile("file", filepath.Base(path))
+		if err != nil {
+			f.Close()
+			return nil, "", err
+		}
+		if _, err := io.Copy(part, f); err != nil {
+			f.Close()
+			return nil, "", fmt.Errorf("reading %s: %w", path, err)
+		}
+		f.Close()
+	}
+
+	if snippetFilename != "" {
+		part, err := mw.CreateFormFile("file", snippetFilename)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := io.Copy(part, snippetStdin); err != nil {
+			return nil, "", fmt.Errorf("reading stdin: %w", err)
+		}
+	}
+
+	if err := mw.Close(); err != nil {
+		return nil, "", err
+	}
+	return body, mw.FormDataContentType(), nil
+}
+
+func runSnippetUpdate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
+	client, err := snippetNewAPIClient()
+	if err != nil {
+		return err
+	}
+
+	workspace, snippetID := args[0], args[1]
+	files := args[2:]
+	if len(files) == 0 && snippetFilename == "" {
+		return fmt.Errorf("provide file paths, or --filename to read content from stdin")
+	}
+
+	body, contentType, err := buildSnippetMultipart(files)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.RequestRaw(ctx, http.MethodPut, fmt.Sprintf("/snippets/%s/%s", workspace, snippetID), contentType, body)
+	if err != nil {
+		return fmt.Errorf("failed to update snippet: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		var errResp map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&errResp)
+		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
+	}
+
+	output.Success("Updated snippet %s", snippetID)
+	return nil
 }
 
 // resolveWorkspace returns the explicit workspace argument or falls back to the
@@ -270,45 +364,12 @@ func runSnippetCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("provide file paths, or --filename to read content from stdin")
 	}
 
-	body := &bytes.Buffer{}
-	mw := multipart.NewWriter(body)
-	if snippetTitle != "" {
-		_ = mw.WriteField("title", snippetTitle)
-	}
-	_ = mw.WriteField("is_private", strconv.FormatBool(snippetPrivate))
-
-	for _, path := range files {
-		f, err := os.Open(path)
-		if err != nil {
-			return fmt.Errorf("opening %s: %w", path, err)
-		}
-		part, err := mw.CreateFormFile("file", filepath.Base(path))
-		if err != nil {
-			f.Close()
-			return err
-		}
-		if _, err := io.Copy(part, f); err != nil {
-			f.Close()
-			return fmt.Errorf("reading %s: %w", path, err)
-		}
-		f.Close()
-	}
-
-	if snippetFilename != "" {
-		part, err := mw.CreateFormFile("file", snippetFilename)
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(part, snippetStdin); err != nil {
-			return fmt.Errorf("reading stdin: %w", err)
-		}
-	}
-
-	if err := mw.Close(); err != nil {
+	body, contentType, err := buildSnippetMultipart(files)
+	if err != nil {
 		return err
 	}
 
-	resp, err := client.PostSnippetsWorkspaceWithBody(ctx, workspace, mw.FormDataContentType(), body)
+	resp, err := client.PostSnippetsWorkspaceWithBody(ctx, workspace, contentType, body)
 	if err != nil {
 		return fmt.Errorf("failed to create snippet: %w", err)
 	}

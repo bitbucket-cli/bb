@@ -254,6 +254,36 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	return http.DefaultClient.Do(req)
 }
 
+// RequestRaw is like Request but sends a pre-encoded body with an explicit
+// content type (e.g. multipart/form-data), for endpoints the generated client
+// doesn't cover that aren't simple JSON.
+func (c *Client) RequestRaw(ctx context.Context, method, path, contentType string, body io.Reader) (*http.Response, error) {
+	url := path
+	if !strings.HasPrefix(path, "http") {
+		base := baseURL
+		if c.Client != nil && c.Client.Server != "" {
+			base = strings.TrimSuffix(c.Client.Server, "/")
+		}
+		url = base + path
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+
+	if c.httpClient != nil {
+		return c.httpClient.Do(req)
+	}
+	if c.Client != nil && c.Client.Client != nil {
+		return c.Client.Client.Do(req)
+	}
+	return http.DefaultClient.Do(req)
+}
+
 // Context helper
 func DefaultContext() context.Context {
 	return context.Background()

@@ -91,7 +91,7 @@ These must be resolved before a public release. See `review.md` for full details
 - [x] Create snippets from files or stdin — `bb snippet create` (multipart, `--title`/`--private`/`--filename`)
 - [x] View snippet content — `bb snippet view <workspace> <id>`
 - [x] Delete snippets — `bb snippet delete <workspace> <id>`
-- [ ] Update snippets — deferred: generated client has no multipart `PUT` variant
+- [x] Update snippets — `bb snippet update <workspace> <id> [files...]` (multipart PUT via Client.RequestRaw)
 
 #### Downloads
 - [x] List repository downloads — `bb download list <workspace/repo>`, paginated
