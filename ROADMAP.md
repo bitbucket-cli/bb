@@ -67,9 +67,9 @@ These must be resolved before a public release. See `review.md` for full details
 - [x] `bb pr create` from current branch without specifying source — `--source` defaults to the current git branch
 
 #### Enhanced Interactive Mode
-- [ ] Add `-i` flag to more commands (branch, issue, etc.)
+- [x] Add `-i` flag to more commands — `bb branch delete -i` (interactive branch picker)
 - [ ] Interactive PR creation wizard
-- [ ] Interactive branch selection for operations
+- [x] Interactive branch selection for operations — `bb branch delete` prompts when the name is omitted
 
 #### Pipeline Improvements
 - [~] Stream pipeline logs in real-time — not feasible: the API returns the full log, no streaming/websocket endpoint

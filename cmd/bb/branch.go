@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/interactive"
 	"github.com/ThomasRedstone/bb/internal/output"
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
@@ -50,11 +51,13 @@ var branchCreateCmd = &cobra.Command{
 }
 
 var branchDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <branch-name>",
+	Use:   "delete <workspace/repo> [branch-name]",
 	Short: "Delete a branch",
-	Long:  `Delete a branch from a repository.`,
-	Args:  cobra.ExactArgs(2),
-	RunE:  runBranchDelete,
+	Long: `Delete a branch from a repository.
+
+Omit the branch name (or pass -i) to choose one interactively.`,
+	Args: cobra.RangeArgs(1, 2),
+	RunE: runBranchDelete,
 }
 
 var branchRestrictCmd = &cobra.Command{
@@ -128,6 +131,7 @@ func init() {
 
 	branchCmd.AddCommand(branchListCmd)
 	branchCmd.AddCommand(branchCreateCmd)
+	branchDeleteCmd.Flags().BoolP("interactive", "i", false, "Select the branch to delete interactively")
 	branchCmd.AddCommand(branchDeleteCmd)
 	branchCmd.AddCommand(branchRestrictCmd)
 }
@@ -342,7 +346,17 @@ func runBranchDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	branchName := args[1]
+	interactiveSel, _ := cmd.Flags().GetBool("interactive")
+	var branchName string
+	if len(args) == 2 && !interactiveSel {
+		branchName = args[1]
+	} else {
+		// No branch given (or -i) — let the user pick one interactively.
+		branchName, err = selectBranchInteractively(cmd, client, repoCtx)
+		if err != nil {
+			return err
+		}
+	}
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugRefsBranchesName(
 		ctx,
@@ -363,6 +377,37 @@ func runBranchDelete(cmd *cobra.Command, args []string) error {
 
 	output.Success("Deleted branch '%s'", branchName)
 	return nil
+}
+
+// selectBranchInteractively fetches the repo's branches and prompts the user to
+// pick one. Returns an error when not running in a terminal.
+func selectBranchInteractively(cmd *cobra.Command, client *api.Client, repoCtx *api.RepoContext) (string, error) {
+	resp, err := client.GetRepositoriesWorkspaceRepoSlugRefsBranches(cmdCtx(cmd), repoCtx.Workspace, repoCtx.RepoSlug, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to list branches: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("API error: %s", resp.Status)
+	}
+
+	var result struct {
+		Values []struct {
+			Name string `json:"name"`
+		} `json:"values"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if len(result.Values) == 0 {
+		return "", fmt.Errorf("no branches found")
+	}
+
+	names := make([]string, len(result.Values))
+	for i, b := range result.Values {
+		names[i] = b.Name
+	}
+	return interactive.SelectString("Select a branch to delete", names)
 }
 
 func runBranchRestrictList(cmd *cobra.Command, args []string) error {
