@@ -187,12 +187,23 @@ func ParseRepoContext(fullName string) (*RepoContext, error) {
 	return &RepoContext{Workspace: parts[0], RepoSlug: parts[1]}, nil
 }
 
+// authHintFor404 returns a re-login hint for a 404 that an expired OAuth token
+// can cause: Bitbucket masks unauthorized access to PRIVATE resources as 404, so
+// a "not found" often really means the session expired. Empty for API-token auth
+// (where `bb auth login` doesn't apply) and for non-404 statuses.
+func authHintFor404(statusCode int) string {
+	if statusCode != http.StatusNotFound || auth.HasAPIToken() {
+		return ""
+	}
+	return " — if it should exist, your session may have expired; run `bb auth login`"
+}
+
 // Helper to check response status
 func CheckResponse(resp *http.Response) error {
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-	return fmt.Errorf("API error: %s", resp.Status)
+	return fmt.Errorf("API error: %s%s", resp.Status, authHintFor404(resp.StatusCode))
 }
 
 // GetURL makes an authenticated GET request to an arbitrary URL.

@@ -80,7 +80,7 @@ func (c *Client) doJSON(ctx context.Context, method, url string, body io.Reader)
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("API error: %s - %s", resp.Status, string(data))
+		return nil, fmt.Errorf("API error: %s - %s%s", resp.Status, string(data), authHintFor404(resp.StatusCode))
 	}
 	return data, nil
 }

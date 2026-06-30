@@ -120,6 +120,35 @@ func TestNewUnauthenticatedClient(t *testing.T) {
 	}
 }
 
+func TestCheckResponse_404AuthHint(t *testing.T) {
+	notFound := &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found"}
+
+	t.Run("OAuth mode hints re-login", func(t *testing.T) {
+		os.Unsetenv("BITBUCKET_API_TOKEN")
+		err := CheckResponse(notFound)
+		if err == nil || !strings.Contains(err.Error(), "bb auth login") {
+			t.Errorf("expected re-login hint on 404 in OAuth mode, got: %v", err)
+		}
+	})
+
+	t.Run("API-token mode does not hint", func(t *testing.T) {
+		os.Setenv("BITBUCKET_API_TOKEN", "x")
+		defer os.Unsetenv("BITBUCKET_API_TOKEN")
+		err := CheckResponse(notFound)
+		if err == nil || strings.Contains(err.Error(), "bb auth login") {
+			t.Errorf("expected no hint with API token, got: %v", err)
+		}
+	})
+
+	t.Run("non-404 does not hint", func(t *testing.T) {
+		os.Unsetenv("BITBUCKET_API_TOKEN")
+		err := CheckResponse(&http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error"})
+		if err == nil || strings.Contains(err.Error(), "bb auth login") {
+			t.Errorf("expected no hint on 500, got: %v", err)
+		}
+	})
+}
+
 func TestAuthClientDo_WithToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
