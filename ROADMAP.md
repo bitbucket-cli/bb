@@ -69,8 +69,8 @@ These must be resolved before a public release. See `review.md` for full details
 #### Pipeline Improvements
 - [ ] Stream pipeline logs in real-time
 - [x] Pipeline variable management — `bb variable list/set/delete` (repo pipeline variables)
-- [ ] Schedule management
-- [ ] Caches and artifacts management
+- [x] Schedule management — `bb pipeline schedule list/view/delete` (create deferred: target/selector body needs live-API verification)
+- [x] Caches management — `bb pipeline cache list/delete` (artifacts download still pending)
 
 ### Medium Priority
 
