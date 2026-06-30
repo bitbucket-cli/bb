@@ -86,7 +86,7 @@ These must be resolved before a public release. See `review.md` for full details
 - [ ] PR templates support
 
 #### Repository Management
-- [ ] Repository settings management
+- [~] Repository settings management — read views added: `bb repo branching-model`, `bb repo permissions [--groups]`, `bb repo forks` (write/update still pending)
 - [x] Access keys (SSH keys) management — `bb deploy-key list/add/view/delete`
 - [x] Repository variables for pipelines — `bb variable list/set/delete`
 - [ ] Branch merge strategies configuration
