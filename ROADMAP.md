@@ -75,7 +75,7 @@ These must be resolved before a public release. See `review.md` for full details
 ### Medium Priority
 
 #### Code Review Features
-- [ ] Inline comments support for PR reviews
+- [x] Inline comments support for PR reviews — `bb pr comment --path <file> --line <n>`
 - [ ] PR review threads navigation
 - [ ] Request changes / approve with comments
 - [ ] PR templates support

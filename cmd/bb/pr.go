@@ -16,13 +16,15 @@ import (
 )
 
 var (
-	prState     string
-	prTitle     string
-	prBody      string
-	prSource    string
-	prDest      string
-	prReviewers []string
-	prComment   string
+	prState       string
+	prTitle       string
+	prBody        string
+	prSource      string
+	prDest        string
+	prReviewers   []string
+	prComment     string
+	prCommentPath string
+	prCommentLine int
 )
 
 // Mockable dependencies for testing
@@ -133,6 +135,8 @@ func init() {
 	prCreateCmd.MarkFlagRequired("title")
 
 	prCommentCmd.Flags().StringVarP(&prComment, "body", "b", "", "Comment text (required)")
+	prCommentCmd.Flags().StringVar(&prCommentPath, "path", "", "File path for an inline comment")
+	prCommentCmd.Flags().IntVar(&prCommentLine, "line", 0, "Line number (in the new version) for an inline comment; requires --path")
 	prCommentCmd.MarkFlagRequired("body")
 
 	// Add interactive flag to commands that support it
@@ -674,6 +678,16 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 		"content": map[string]interface{}{
 			"raw": prComment,
 		},
+	}
+
+	// Inline comment: anchor it to a file (and optionally a line in the new
+	// version of that file).
+	if prCommentPath != "" {
+		inline := map[string]interface{}{"path": prCommentPath}
+		if prCommentLine > 0 {
+			inline["to"] = prCommentLine
+		}
+		commentBody["inline"] = inline
 	}
 
 	body, err := json.Marshal(commentBody)

@@ -113,6 +113,42 @@ func TestRunPrCreate_DefaultsToCurrentBranch(t *testing.T) {
 	}
 }
 
+func TestRunPRComment_Inline(t *testing.T) {
+	defer resetPrCheckoutMocks()
+	defer func() { prComment, prCommentPath, prCommentLine = "", "", 0 }()
+
+	var gotPath string
+	var gotLine float64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Inline map[string]interface{} `json:"inline"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		if body.Inline != nil {
+			gotPath, _ = body.Inline["path"].(string)
+			gotLine, _ = body.Inline["to"].(float64)
+		}
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"id":1}`))
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+	prComment = "needs a fix"
+	prCommentPath = "main.go"
+	prCommentLine = 42
+
+	if err := runPRComment(prCommentCmd, []string{"myws/myrepo", "5"}); err != nil {
+		t.Fatalf("runPRComment error: %v", err)
+	}
+	if gotPath != "main.go" {
+		t.Errorf("inline.path = %q, want main.go", gotPath)
+	}
+	if gotLine != 42 {
+		t.Errorf("inline.to = %v, want 42", gotLine)
+	}
+}
+
 func TestResolvePrRepo(t *testing.T) {
 	defer resetPrCheckoutMocks()
 
