@@ -81,7 +81,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 #### Code Review Features
 - [x] Inline comments support for PR reviews — `bb pr comment --path <file> --line <n>`
-- [ ] PR review threads navigation
+- [x] PR review threads navigation — `bb pr threads` (comments nested by reply, inline anchored)
 - [x] Request changes with comment — `bb pr request-changes [--remove] [--comment]`
 - [x] PR templates support — `bb pr create` defaults the description from `.bitbucket/`, root, `.github/`, or `docs/` `pull_request_template.md`
 
