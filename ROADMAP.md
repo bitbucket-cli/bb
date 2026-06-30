@@ -68,7 +68,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 #### Enhanced Interactive Mode
 - [x] Add `-i` flag to more commands — `bb branch delete -i` (interactive branch picker)
-- [ ] Interactive PR creation wizard
+- [x] Interactive PR creation wizard — `bb pr create -i` prompts for the title
 - [x] Interactive branch selection for operations — `bb branch delete` prompts when the name is omitted
 
 #### Pipeline Improvements

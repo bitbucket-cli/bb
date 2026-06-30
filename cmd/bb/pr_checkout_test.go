@@ -151,6 +151,23 @@ func TestRunPRComment_Inline(t *testing.T) {
 	}
 }
 
+func TestRunPRCreate_RequiresTitle(t *testing.T) {
+	defer resetPrCheckoutMocks()
+	defer func() {
+		prTitle, prSource, prBody, prReviewers = "", "", "", nil
+		prCurrentBranch = nil
+	}()
+
+	prNewAPIClient = mockAPIClientFactory(httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})))
+	prCurrentBranch = func() (string, error) { return "feature", nil }
+	prTitle = "" // no title, not interactive -> error
+
+	err := runPRCreate(prCreateCmd, []string{"myws/myrepo"})
+	if err == nil {
+		t.Error("expected an error when no title is given without -i")
+	}
+}
+
 func TestLoadPRTemplate(t *testing.T) {
 	dir := t.TempDir()
 

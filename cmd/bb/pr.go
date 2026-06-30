@@ -132,7 +132,7 @@ func init() {
 	prCreateCmd.Flags().StringVarP(&prSource, "source", "s", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().StringVarP(&prDest, "dest", "d", "", "Destination branch (defaults to main branch)")
 	prCreateCmd.Flags().StringSliceVarP(&prReviewers, "reviewer", "r", nil, "Reviewers (can be specified multiple times)")
-	prCreateCmd.MarkFlagRequired("title")
+	prCreateCmd.Flags().BoolP("interactive", "i", false, "Prompt for the title (and other fields) interactively")
 
 	prCommentCmd.Flags().StringVarP(&prComment, "body", "b", "", "Comment text (required)")
 	prCommentCmd.Flags().StringVar(&prCommentPath, "path", "", "File path for an inline comment")
@@ -322,6 +322,20 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("no --source given and could not detect the current git branch: %w", err)
 		}
 		prSource = branch
+	}
+
+	// Title is required; prompt for it in interactive mode, else error.
+	if prTitle == "" {
+		interactiveMode, _ := cmd.Flags().GetBool("interactive")
+		if interactiveMode {
+			prTitle, err = interactive.Input("Pull request title", "")
+			if err != nil {
+				return err
+			}
+		}
+		if prTitle == "" {
+			return fmt.Errorf("a title is required (pass --title, or -i to enter it interactively)")
+		}
 	}
 
 	// Default the description from a PR template when --body is not given.
