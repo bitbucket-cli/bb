@@ -131,14 +131,14 @@ These must be resolved before a public release. See `review.md` for full details
 ### Documentation
 - [x] Man pages generation — hidden `bb man <dir>` (cobra/doc)
 - [ ] Comprehensive README with examples
-- [ ] Contributing guide
+- [x] Contributing guide — CONTRIBUTING.md
 - [ ] API documentation
 
 ### Build and Distribution
 - [x] GitHub Actions CI/CD pipeline (ci.yml + release.yml + .goreleaser.yaml)
 - [x] Cross-platform binaries (Linux, macOS, Windows) — goreleaser builds amd64+arm64
 - [x] Homebrew formula — goreleaser publishes to ThomasRedstone/homebrew-tap
-- [ ] APT/RPM packages
+- [x] APT/RPM packages — goreleaser nfpms (deb/rpm)
 - [ ] Scoop manifest for Windows
 
 ### Performance
@@ -148,9 +148,9 @@ These must be resolved before a public release. See `review.md` for full details
 
 ### Code Quality
 - [x] Golangci-lint integration — `.golangci.yml` (v2) + CI lint job
-- [ ] Pre-commit hooks
+- [x] Pre-commit hooks — .pre-commit-config.yaml
 - [ ] Semantic versioning
-- [ ] Changelog automation
+- [x] Changelog automation — goreleaser changelog
 
 ## Contributing
 
