@@ -15,13 +15,13 @@ import (
 var issueBulkState string
 
 var issueBulkCmd = &cobra.Command{
-	Use:   "bulk <workspace/repo> <issue-id...>",
+	Use:   "bulk [workspace/repo] <issue-id...>",
 	Short: "Update the state of multiple issues",
 	Long: `Set the state of several issues at once.
 
 Example:
   bb issue bulk myws/myrepo 12 15 19 --state resolved`,
-	Args: cobra.MinimumNArgs(2),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runIssueBulk,
 }
 

@@ -31,21 +31,21 @@ var variableListCmd = &cobra.Command{
 }
 
 var variableSetCmd = &cobra.Command{
-	Use:   "set <workspace/repo> <key> <value>",
+	Use:   "set [workspace/repo] <key> <value>",
 	Short: "Set a pipeline variable",
 	Long: `Create or update a pipeline variable.
 
 If a variable with the given key already exists it is updated, otherwise it is
 created. Use --secured to mark the value as secured (write-only).`,
-	Args: cobra.ExactArgs(3),
+	Args: cobra.RangeArgs(2, 3),
 	RunE: runVariableSet,
 }
 
 var variableDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <key>",
+	Use:   "delete [workspace/repo] <key>",
 	Short: "Delete a pipeline variable",
 	Long:  `Delete a pipeline variable by key.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runVariableDelete,
 }
 
@@ -120,11 +120,11 @@ func runVariableSet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 2)
 	if err != nil {
 		return err
 	}
-	key, value := args[1], args[2]
+	key, value := rest[0], rest[1]
 
 	// Upsert: find an existing variable with this key to decide POST vs PUT.
 	existing, err := fetchVariables(cmd, client, repoCtx)
@@ -170,11 +170,11 @@ func runVariableDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
-	key := args[1]
+	key := rest[0]
 
 	existing, err := fetchVariables(cmd, client, repoCtx)
 	if err != nil {

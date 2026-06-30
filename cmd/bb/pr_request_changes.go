@@ -15,13 +15,13 @@ var (
 )
 
 var prRequestChangesCmd = &cobra.Command{
-	Use:   "request-changes <workspace/repo> [pr-number]",
+	Use:   "request-changes [workspace/repo] [pr-number]",
 	Short: "Request changes on a pull request",
 	Long: `Mark a pull request as requiring changes.
 
 Use --remove to withdraw a previous request-changes. Use -i to select the PR
 interactively when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRRequestChanges,
 }
 
@@ -40,13 +40,13 @@ func runPRRequestChanges(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}

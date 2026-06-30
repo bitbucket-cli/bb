@@ -11,10 +11,10 @@ import (
 )
 
 var prThreadsCmd = &cobra.Command{
-	Use:   "threads <workspace/repo> <pr-number>",
+	Use:   "threads [workspace/repo] <pr-number>",
 	Short: "Show pull request comments as threads",
 	Long:  `Display a pull request's comments grouped into threads (replies nested under their parent, inline comments anchored to their file/line).`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPRThreads,
 }
 
@@ -47,13 +47,13 @@ func runPRThreads(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
-	prID, err := strconv.Atoi(args[1])
+	prID, err := strconv.Atoi(rest[0])
 	if err != nil {
-		return fmt.Errorf("invalid pr-number %q", args[1])
+		return fmt.Errorf("invalid pr-number %q", rest[0])
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdComments(ctx, repoCtx.Workspace, repoCtx.RepoSlug, prID)

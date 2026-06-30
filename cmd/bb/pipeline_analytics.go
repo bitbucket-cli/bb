@@ -12,10 +12,10 @@ import (
 var pipelineAnalyticsLimit int
 
 var pipelineAnalyticsCmd = &cobra.Command{
-	Use:   "analytics <workspace/repo>",
+	Use:   "analytics [workspace/repo]",
 	Short: "Show pipeline success/failure statistics",
 	Long:  `Summarise recent pipeline runs: counts by result and the success rate.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPipelineAnalytics,
 }
 

@@ -13,10 +13,10 @@ import (
 var prMetricsLimit int
 
 var prMetricsCmd = &cobra.Command{
-	Use:   "metrics <workspace/repo>",
+	Use:   "metrics [workspace/repo]",
 	Short: "Show pull request metrics (time to merge)",
 	Long:  `Summarise merged pull requests: count and average/median time from open to merge.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPRMetrics,
 }
 

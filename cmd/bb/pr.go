@@ -47,80 +47,80 @@ var prListCmd = &cobra.Command{
 }
 
 var prViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> [pr-number]",
+	Use:   "view [workspace/repo] [pr-number]",
 	Short: "View pull request details",
 	Long: `Display detailed information about a pull request.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRView,
 }
 
 var prCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create a pull request",
 	Long:  `Create a new pull request.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPRCreate,
 }
 
 var prMergeCmd = &cobra.Command{
-	Use:   "merge <workspace/repo> [pr-number]",
+	Use:   "merge [workspace/repo] [pr-number]",
 	Short: "Merge a pull request",
 	Long: `Merge an open pull request.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRMerge,
 }
 
 var prApproveCmd = &cobra.Command{
-	Use:   "approve <workspace/repo> [pr-number]",
+	Use:   "approve [workspace/repo] [pr-number]",
 	Short: "Approve a pull request",
 	Long: `Add your approval to a pull request.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRApprove,
 }
 
 var prDeclineCmd = &cobra.Command{
-	Use:   "decline <workspace/repo> [pr-number]",
+	Use:   "decline [workspace/repo] [pr-number]",
 	Short: "Decline a pull request",
 	Long: `Decline (reject) an open pull request without merging it.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRDecline,
 }
 
 var prCommentsCmd = &cobra.Command{
-	Use:   "comments <workspace/repo> [pr-number]",
+	Use:   "comments [workspace/repo] [pr-number]",
 	Short: "List comments on a pull request",
 	Long: `Display all comments on a pull request.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRComments,
 }
 
 var prCommentCmd = &cobra.Command{
-	Use:   "comment <workspace/repo> [pr-number]",
+	Use:   "comment [workspace/repo] [pr-number]",
 	Short: "Add a comment to a pull request",
 	Long: `Add a new comment to a pull request.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRComment,
 }
 
 var prDiffCmd = &cobra.Command{
-	Use:   "diff <workspace/repo> [pr-number]",
+	Use:   "diff [workspace/repo] [pr-number]",
 	Short: "View pull request diff",
 	Long: `Display the diff of changes in a pull request.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRDiff,
 }
 
@@ -212,13 +212,13 @@ func runPRView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -448,13 +448,13 @@ func runPRMerge(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -491,13 +491,13 @@ func runPRApprove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -531,13 +531,13 @@ func runPRDecline(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -590,13 +590,13 @@ func runPRComments(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -682,13 +682,13 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -743,13 +743,13 @@ func runPRDiff(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndOptionalNumber(args)
 	if err != nil {
 		return err
 	}
 
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	prID, err := getPRID(ctx, args, client, repoCtx, interactive)
+	prID, err := getPRID(ctx, rest, client, repoCtx, interactive)
 	if err != nil {
 		return err
 	}
@@ -845,11 +845,11 @@ func selectPRInteractively(ctx context.Context, client *api.Client, workspace, r
 }
 
 // getPRID gets PR ID from args or interactive selection
-func getPRID(ctx context.Context, args []string, client *api.Client, repoCtx *api.RepoContext, interactive bool) (int, error) {
-	if len(args) >= 2 {
-		prID, err := strconv.Atoi(args[1])
+func getPRID(ctx context.Context, idArgs []string, client *api.Client, repoCtx *api.RepoContext, interactive bool) (int, error) {
+	if len(idArgs) >= 1 {
+		prID, err := strconv.Atoi(idArgs[0])
 		if err != nil {
-			return 0, fmt.Errorf("invalid PR number: %s", args[1])
+			return 0, fmt.Errorf("invalid PR number: %s", idArgs[0])
 		}
 		return prID, nil
 	}

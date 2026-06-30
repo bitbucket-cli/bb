@@ -27,16 +27,16 @@ and raw bytes for a file. The ref defaults to the repository's main branch.`,
 }
 
 var sourceListCmd = &cobra.Command{
-	Use:   "list <workspace/repo> [path]",
+	Use:   "list [workspace/repo] [path]",
 	Short: "List a directory's contents",
-	Args:  cobra.RangeArgs(1, 2),
+	Args:  cobra.RangeArgs(0, 2),
 	RunE:  runSourceList,
 }
 
 var sourceViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <path>",
+	Use:   "view [workspace/repo] <path>",
 	Short: "Print a file's contents",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runSourceView,
 }
 
@@ -79,7 +79,7 @@ func runSourceList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 0)
 	if err != nil {
 		return err
 	}
@@ -88,8 +88,8 @@ func runSourceList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	path := ""
-	if len(args) == 2 {
-		path = args[1]
+	if len(rest) > 0 {
+		path = rest[0]
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugSrcCommitPath(ctx, repoCtx.Workspace, repoCtx.RepoSlug, ref, path, nil)
@@ -134,7 +134,7 @@ func runSourceView(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func runSourceView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	resp, err := client.GetRepositoriesWorkspaceRepoSlugSrcCommitPath(ctx, repoCtx.Workspace, repoCtx.RepoSlug, ref, args[1], nil)
+	resp, err := client.GetRepositoriesWorkspaceRepoSlugSrcCommitPath(ctx, repoCtx.Workspace, repoCtx.RepoSlug, ref, rest[0], nil)
 	if err != nil {
 		return fmt.Errorf("failed to fetch file: %w", err)
 	}

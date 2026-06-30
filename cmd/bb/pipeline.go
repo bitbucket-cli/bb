@@ -44,42 +44,42 @@ var pipelineListCmd = &cobra.Command{
 }
 
 var pipelineViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <pipeline-uuid>",
+	Use:   "view [workspace/repo] <pipeline-uuid>",
 	Short: "View pipeline details",
 	Long:  `Display detailed information about a pipeline.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineView,
 }
 
 var pipelineTriggerCmd = &cobra.Command{
-	Use:   "trigger <workspace/repo>",
+	Use:   "trigger [workspace/repo]",
 	Short: "Trigger a pipeline",
 	Long:  `Trigger a new pipeline run on a branch.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPipelineTrigger,
 }
 
 var pipelineStopCmd = &cobra.Command{
-	Use:   "stop <workspace/repo> <pipeline-uuid>",
+	Use:   "stop [workspace/repo] <pipeline-uuid>",
 	Short: "Stop a pipeline",
 	Long:  `Stop a running pipeline.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineStop,
 }
 
 var pipelineStepsCmd = &cobra.Command{
-	Use:   "steps <workspace/repo> <pipeline-uuid>",
+	Use:   "steps [workspace/repo] <pipeline-uuid>",
 	Short: "List pipeline steps",
 	Long:  `List all steps in a pipeline.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineSteps,
 }
 
 var pipelineLogsCmd = &cobra.Command{
-	Use:   "logs <workspace/repo> <pipeline-uuid> <step-uuid>",
+	Use:   "logs [workspace/repo] <pipeline-uuid> <step-uuid>",
 	Short: "View step logs",
 	Long:  `Display logs for a specific pipeline step.`,
-	Args:  cobra.ExactArgs(3),
+	Args:  cobra.RangeArgs(2, 3),
 	RunE:  runPipelineLogs,
 }
 
@@ -226,12 +226,12 @@ func runPipelineView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	// Ensure UUID is wrapped in braces
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
@@ -369,12 +369,12 @@ func runPipelineStop(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	// Ensure UUID is wrapped in braces
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
@@ -397,7 +397,7 @@ func runPipelineStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
 	}
 
-	output.Success("Stopped pipeline %s", args[1])
+	output.Success("Stopped pipeline %s", rest[0])
 	return nil
 }
 
@@ -467,12 +467,12 @@ func runPipelineSteps(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
 	}
@@ -560,17 +560,17 @@ func runPipelineLogs(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 2)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
 	}
 
-	stepUUID := args[2]
+	stepUUID := rest[1]
 	if !strings.HasPrefix(stepUUID, "{") {
 		stepUUID = "{" + stepUUID + "}"
 	}

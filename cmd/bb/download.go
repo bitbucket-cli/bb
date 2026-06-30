@@ -29,40 +29,40 @@ var downloadCmd = &cobra.Command{
 }
 
 var downloadListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List download artifacts",
 	Long:  `List the download artifacts attached to a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runDownloadList,
 }
 
 var downloadUploadCmd = &cobra.Command{
-	Use:   "upload <workspace/repo> <files...>",
+	Use:   "upload [workspace/repo] <files...>",
 	Short: "Upload download artifacts",
 	Long: `Upload one or more files as repository download artifacts.
 
 Example:
   bb download upload myworkspace/myrepo dist/app-linux dist/app-macos`,
-	Args: cobra.MinimumNArgs(2),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runDownloadUpload,
 }
 
 var downloadGetCmd = &cobra.Command{
-	Use:   "get <workspace/repo> <filename>",
+	Use:   "get [workspace/repo] <filename>",
 	Short: "Download an artifact",
 	Long: `Fetch a download artifact's contents.
 
 Writes to the artifact's filename in the current directory, or to the path
 given with -o.`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runDownloadGet,
 }
 
 var downloadDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <filename>",
+	Use:   "delete [workspace/repo] <filename>",
 	Short: "Delete a download artifact",
 	Long:  `Delete a download artifact from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runDownloadDelete,
 }
 
@@ -220,11 +220,11 @@ func runDownloadGet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
-	filename := args[1]
+	filename := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugDownloadsFilename(ctx, repoCtx.Workspace, repoCtx.RepoSlug, filename)
 	if err != nil {
@@ -262,11 +262,11 @@ func runDownloadDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
-	filename := args[1]
+	filename := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugDownloadsFilename(ctx, repoCtx.Workspace, repoCtx.RepoSlug, filename)
 	if err != nil {

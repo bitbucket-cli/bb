@@ -31,15 +31,15 @@ var deployKeyCmd = &cobra.Command{
 }
 
 var deployKeyListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List deploy keys",
 	Long:  `List the deploy keys configured for a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runDeployKeyList,
 }
 
 var deployKeyAddCmd = &cobra.Command{
-	Use:   "add <workspace/repo> [public-key]",
+	Use:   "add [workspace/repo] [public-key]",
 	Short: "Add a deploy key",
 	Long: `Add a deploy key to a repository.
 
@@ -48,23 +48,23 @@ Provide the public key inline, or read it from a file with --key-file.
 Examples:
   bb deploy-key add myworkspace/myrepo --key-file ~/.ssh/id_ed25519.pub --label ci
   bb deploy-key add myworkspace/myrepo "ssh-ed25519 AAAA... user@host" --label ci`,
-	Args: cobra.RangeArgs(1, 2),
+	Args: cobra.RangeArgs(0, 2),
 	RunE: runDeployKeyAdd,
 }
 
 var deployKeyViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <key-id>",
+	Use:   "view [workspace/repo] <key-id>",
 	Short: "View a deploy key",
 	Long:  `Display a deploy key's details.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runDeployKeyView,
 }
 
 var deployKeyDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <key-id>",
+	Use:   "delete [workspace/repo] <key-id>",
 	Short: "Delete a deploy key",
 	Long:  `Delete a deploy key from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runDeployKeyDelete,
 }
 
@@ -163,12 +163,12 @@ func runDeployKeyAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 0)
 	if err != nil {
 		return err
 	}
 
-	key, err := resolveDeployKey(args)
+	key, err := resolveDeployKey(rest)
 	if err != nil {
 		return err
 	}
@@ -218,11 +218,11 @@ func runDeployKeyView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
-	keyID := args[1]
+	keyID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugDeployKeysKeyId(ctx, repoCtx.Workspace, repoCtx.RepoSlug, keyID)
 	if err != nil {
@@ -258,11 +258,11 @@ func runDeployKeyDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
-	keyID := args[1]
+	keyID := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugDeployKeysKeyId(ctx, repoCtx.Workspace, repoCtx.RepoSlug, keyID)
 	if err != nil {
@@ -282,7 +282,7 @@ func runDeployKeyDelete(cmd *cobra.Command, args []string) error {
 
 // resolveDeployKey returns the public key from the --key-file flag or the
 // optional positional argument.
-func resolveDeployKey(args []string) (string, error) {
+func resolveDeployKey(keyArgs []string) (string, error) {
 	if deployKeyFile != "" {
 		data, err := os.ReadFile(deployKeyFile)
 		if err != nil {
@@ -290,8 +290,8 @@ func resolveDeployKey(args []string) (string, error) {
 		}
 		return strings.TrimSpace(string(data)), nil
 	}
-	if len(args) >= 2 {
-		return strings.TrimSpace(args[1]), nil
+	if len(keyArgs) >= 1 {
+		return strings.TrimSpace(keyArgs[0]), nil
 	}
 	return "", fmt.Errorf("provide a public key argument or --key-file")
 }

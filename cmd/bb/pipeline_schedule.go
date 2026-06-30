@@ -24,14 +24,14 @@ var pipelineScheduleCmd = &cobra.Command{
 }
 
 var pipelineScheduleListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List pipeline schedules",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPipelineScheduleList,
 }
 
 var pipelineScheduleCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create a pipeline schedule",
 	Long: `Create a pipeline schedule that runs a branch's pipeline on a cron.
 
@@ -40,21 +40,21 @@ verify the created schedule in the Bitbucket UI.
 
 Example:
   bb pipeline schedule create myws/myrepo --branch main --cron "0 0 6 * * ? *"`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runPipelineScheduleCreate,
 }
 
 var pipelineScheduleViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <schedule-uuid>",
+	Use:   "view [workspace/repo] <schedule-uuid>",
 	Short: "View a pipeline schedule",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineScheduleView,
 }
 
 var pipelineScheduleDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <schedule-uuid>",
+	Use:   "delete [workspace/repo] <schedule-uuid>",
 	Short: "Delete a pipeline schedule",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineScheduleDelete,
 }
 
@@ -66,16 +66,16 @@ var pipelineCacheCmd = &cobra.Command{
 }
 
 var pipelineCacheListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List pipeline caches",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPipelineCacheList,
 }
 
 var pipelineCacheDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <cache-name>",
+	Use:   "delete [workspace/repo] <cache-name>",
 	Short: "Delete a pipeline cache by name",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineCacheDelete,
 }
 
@@ -206,12 +206,12 @@ func runPipelineScheduleView(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.GetRepositoryPipelineSchedule(ctx, repoCtx.Workspace, repoCtx.RepoSlug, args[1])
+	resp, err := client.GetRepositoryPipelineSchedule(ctx, repoCtx.Workspace, repoCtx.RepoSlug, rest[0])
 	if err != nil {
 		return fmt.Errorf("failed to get schedule: %w", err)
 	}
@@ -243,12 +243,12 @@ func runPipelineScheduleDelete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.DeleteRepositoryPipelineSchedule(ctx, repoCtx.Workspace, repoCtx.RepoSlug, args[1])
+	resp, err := client.DeleteRepositoryPipelineSchedule(ctx, repoCtx.Workspace, repoCtx.RepoSlug, rest[0])
 	if err != nil {
 		return fmt.Errorf("failed to delete schedule: %w", err)
 	}
@@ -257,7 +257,7 @@ func runPipelineScheduleDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	output.Success("Deleted schedule %s", args[1])
+	output.Success("Deleted schedule %s", rest[0])
 	return nil
 }
 
@@ -316,12 +316,12 @@ func runPipelineCacheDelete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	params := &generated.DeleteRepositoryPipelineCachesParams{Name: args[1]}
+	params := &generated.DeleteRepositoryPipelineCachesParams{Name: rest[0]}
 	resp, err := client.DeleteRepositoryPipelineCaches(ctx, repoCtx.Workspace, repoCtx.RepoSlug, params)
 	if err != nil {
 		return fmt.Errorf("failed to delete cache: %w", err)
@@ -331,7 +331,7 @@ func runPipelineCacheDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	output.Success("Deleted cache %s", args[1])
+	output.Success("Deleted cache %s", rest[0])
 	return nil
 }
 

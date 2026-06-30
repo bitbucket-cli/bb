@@ -43,56 +43,56 @@ var issueListCmd = &cobra.Command{
 }
 
 var issueCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create an issue",
 	Long: `Create a new issue in a repository.
 
 Example:
   bb issue create myworkspace/myrepo --title "Bug report" --body "Description" --kind bug --priority major`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runIssueCreate,
 }
 
 var issueViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <issue-id>",
+	Use:   "view [workspace/repo] <issue-id>",
 	Short: "View issue details",
 	Long:  `Display detailed information about a specific issue.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueView,
 }
 
 var issueUpdateCmd = &cobra.Command{
-	Use:   "update <workspace/repo> <issue-id>",
+	Use:   "update [workspace/repo] <issue-id>",
 	Short: "Update an issue",
 	Long: `Update an existing issue.
 
 Example:
   bb issue update myworkspace/myrepo 123 --state resolved --priority minor`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runIssueUpdate,
 }
 
 var issueDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <issue-id>",
+	Use:   "delete [workspace/repo] <issue-id>",
 	Short: "Delete an issue",
 	Long:  `Delete an issue from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueDelete,
 }
 
 var issueCommentCmd = &cobra.Command{
-	Use:   "comment <workspace/repo> <issue-id>",
+	Use:   "comment [workspace/repo] <issue-id>",
 	Short: "Add a comment to an issue",
 	Long:  `Add a new comment to an issue.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueComment,
 }
 
 var issueCommentsCmd = &cobra.Command{
-	Use:   "comments <workspace/repo> <issue-id>",
+	Use:   "comments [workspace/repo] <issue-id>",
 	Short: "List comments on an issue",
 	Long:  `Display all comments on an issue.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueComments,
 }
 
@@ -292,12 +292,12 @@ func runIssueView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugIssuesIssueId(
 		ctx,
@@ -370,12 +370,12 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	issueRequest := make(map[string]interface{})
 
@@ -448,12 +448,12 @@ func runIssueDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugIssuesIssueId(
 		ctx,
@@ -484,12 +484,12 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	commentRequest := map[string]interface{}{
 		"content": map[string]interface{}{
@@ -541,12 +541,12 @@ func runIssueComments(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugIssuesIssueIdComments(
 		ctx,

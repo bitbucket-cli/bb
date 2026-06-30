@@ -12,26 +12,26 @@ import (
 var repoPermissionsGroups bool
 
 var repoBranchingModelCmd = &cobra.Command{
-	Use:   "branching-model <workspace/repo>",
+	Use:   "branching-model [workspace/repo]",
 	Short: "Show the repository branching model",
 	Long:  `Display the repository's branching model (development/production branches and branch types).`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runRepoBranchingModel,
 }
 
 var repoPermissionsCmd = &cobra.Command{
-	Use:   "permissions <workspace/repo>",
+	Use:   "permissions [workspace/repo]",
 	Short: "List repository user/group permissions",
 	Long:  `List the explicit user (or, with --groups, group) permissions on a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runRepoPermissions,
 }
 
 var repoForksCmd = &cobra.Command{
-	Use:   "forks <workspace/repo>",
+	Use:   "forks [workspace/repo]",
 	Short: "List repository forks",
 	Long:  `List the forks of a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runRepoForks,
 }
 

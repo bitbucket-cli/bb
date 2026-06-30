@@ -41,29 +41,29 @@ var webhookListCmd = &cobra.Command{
 }
 
 var webhookCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create a webhook",
 	Long: `Create a new webhook for a repository.
 
 Example:
   bb webhook create myworkspace/myrepo --url https://example.com/webhook --events repo:push,pullrequest:created`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runWebhookCreate,
 }
 
 var webhookViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <webhook-id>",
+	Use:   "view [workspace/repo] <webhook-id>",
 	Short: "View webhook details",
 	Long:  `Display detailed information about a specific webhook.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runWebhookView,
 }
 
 var webhookDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <webhook-id>",
+	Use:   "delete [workspace/repo] <webhook-id>",
 	Short: "Delete a webhook",
 	Long:  `Delete a webhook from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runWebhookDelete,
 }
 
@@ -249,12 +249,12 @@ func runWebhookView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	webhookID := args[1]
+	webhookID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugHooksUid(
 		ctx,
@@ -309,12 +309,12 @@ func runWebhookDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	webhookID := args[1]
+	webhookID := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugHooksUid(
 		ctx,

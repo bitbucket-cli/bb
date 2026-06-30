@@ -38,10 +38,10 @@ Use --branch to list commits reachable from a specific branch, tag, or hash.`,
 }
 
 var commitViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <hash>",
+	Use:   "view [workspace/repo] <hash>",
 	Short: "View a commit",
 	Long:  `Display a single commit's details.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runCommitView,
 }
 
@@ -103,12 +103,12 @@ func runCommitView(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.GetRepositoriesWorkspaceRepoSlugCommitCommit(ctx, repoCtx.Workspace, repoCtx.RepoSlug, args[1])
+	resp, err := client.GetRepositoriesWorkspaceRepoSlugCommitCommit(ctx, repoCtx.Workspace, repoCtx.RepoSlug, rest[0])
 	if err != nil {
 		return fmt.Errorf("failed to get commit: %w", err)
 	}
@@ -133,10 +133,10 @@ func runCommitView(cmd *cobra.Command, args []string) error {
 }
 
 var commitActivityCmd = &cobra.Command{
-	Use:   "activity <workspace/repo>",
+	Use:   "activity [workspace/repo]",
 	Short: "Show commit counts per author",
 	Long:  `Summarise commit activity by author over the most recent commits (--limit, --branch).`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runCommitActivity,
 }
 
