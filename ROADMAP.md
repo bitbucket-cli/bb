@@ -113,7 +113,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 #### Bulk Operations
 - [x] Bulk PR operations — `bb pr bulk approve/decline/merge <repo> <id...>`
-- [ ] Bulk issue updates
+- [x] Bulk issue updates — `bb issue bulk <repo> <id...> --state`
 - [x] Export operations (PRs, issues to CSV/JSON) — global `--csv` (and existing `--json`) on every list command
 
 #### Notifications
@@ -149,7 +149,7 @@ These must be resolved before a public release. See `review.md` for full details
 ### Code Quality
 - [x] Golangci-lint integration — `.golangci.yml` (v2) + CI lint job
 - [x] Pre-commit hooks — .pre-commit-config.yaml
-- [ ] Semantic versioning
+- [x] Semantic versioning — goreleaser cuts releases from semver git tags (`-X main.version`)
 - [x] Changelog automation — goreleaser changelog
 
 ## Contributing
