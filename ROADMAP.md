@@ -143,7 +143,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 ### Performance
 - [ ] Response caching for frequently accessed data
-- [ ] Concurrent API requests where applicable
+- [x] Concurrent API requests where applicable — bulk PR/issue ops run with bounded concurrency (`runConcurrent`)
 - [ ] Lazy loading for large result sets
 
 ### Code Quality

@@ -55,22 +55,27 @@ func runIssueBulk(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	var failures int
 	ids := args[1:]
-	for _, id := range ids {
+	errs := runConcurrent(ids, 8, func(id string) error {
 		resp, err := client.PutRepositoriesWorkspaceRepoSlugIssuesIssueId(ctx, repoCtx.Workspace, repoCtx.RepoSlug, id, withBody)
 		if err != nil {
-			output.Error("issue #%s update failed: %v", id, err)
-			failures++
-			continue
+			return err
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
-			output.Error("issue #%s update failed: %s", id, resp.Status)
+			return fmt.Errorf("%s", resp.Status)
+		}
+		return nil
+	})
+
+	var failures int
+	for i, e := range errs {
+		if e != nil {
+			output.Error("issue #%s update failed: %v", ids[i], e)
 			failures++
 		} else {
-			output.Success("issue #%s → %s", id, issueBulkState)
+			output.Success("issue #%s → %s", ids[i], issueBulkState)
 		}
-		resp.Body.Close()
 	}
 
 	if failures > 0 {

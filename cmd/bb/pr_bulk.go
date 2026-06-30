@@ -57,14 +57,12 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 		return err
 	}
 
-	var failures int
 	ids := args[1:]
-	for _, idStr := range ids {
+	// Independent calls — run them concurrently.
+	errs := runConcurrent(ids, 8, func(idStr string) error {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			output.Error("invalid PR number %q", idStr)
-			failures++
-			continue
+			return fmt.Errorf("invalid PR number %q", idStr)
 		}
 
 		var resp *http.Response
@@ -78,19 +76,24 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 		default:
 			return fmt.Errorf("unknown action %q", action)
 		}
-
 		if err != nil {
-			output.Error("PR #%d %s failed: %v", id, action, err)
-			failures++
-			continue
+			return err
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode >= 300 {
-			output.Error("PR #%d %s failed: %s", id, action, resp.Status)
+			return fmt.Errorf("%s", resp.Status)
+		}
+		return nil
+	})
+
+	var failures int
+	for i, e := range errs {
+		if e != nil {
+			output.Error("PR #%s %s failed: %v", ids[i], action, e)
 			failures++
 		} else {
-			output.Success("PR #%d %s", id, action)
+			output.Success("PR #%s %s", ids[i], action)
 		}
-		resp.Body.Close()
 	}
 
 	if failures > 0 {
