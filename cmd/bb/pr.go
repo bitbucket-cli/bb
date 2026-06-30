@@ -127,11 +127,10 @@ func init() {
 
 	prCreateCmd.Flags().StringVarP(&prTitle, "title", "t", "", "Pull request title (required)")
 	prCreateCmd.Flags().StringVarP(&prBody, "body", "b", "", "Pull request description")
-	prCreateCmd.Flags().StringVarP(&prSource, "source", "s", "", "Source branch (required)")
+	prCreateCmd.Flags().StringVarP(&prSource, "source", "s", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().StringVarP(&prDest, "dest", "d", "", "Destination branch (defaults to main branch)")
 	prCreateCmd.Flags().StringSliceVarP(&prReviewers, "reviewer", "r", nil, "Reviewers (can be specified multiple times)")
 	prCreateCmd.MarkFlagRequired("title")
-	prCreateCmd.MarkFlagRequired("source")
 
 	prCommentCmd.Flags().StringVarP(&prComment, "body", "b", "", "Comment text (required)")
 	prCommentCmd.MarkFlagRequired("body")
@@ -310,6 +309,15 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 	repoCtx, err := api.ParseRepoContext(args[0])
 	if err != nil {
 		return err
+	}
+
+	// Default the source branch to the current git branch.
+	if prSource == "" {
+		branch, err := prCurrentBranch()
+		if err != nil {
+			return fmt.Errorf("no --source given and could not detect the current git branch: %w", err)
+		}
+		prSource = branch
 	}
 
 	// If destination not specified, we need to get the repo to find the main branch

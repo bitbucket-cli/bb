@@ -57,9 +57,9 @@ These must be resolved before a public release. See `review.md` for full details
 ### High Priority
 
 #### Git Integration
-- [ ] Auto-detect workspace/repo from current git directory
-- [ ] `bb pr checkout <pr-number>` - checkout PR branch locally
-- [ ] `bb pr create` from current branch without specifying source
+- [x] Auto-detect workspace/repo from current git directory — `internal/git.DetectRepo` (origin remote), used by `bb pr checkout`
+- [x] `bb pr checkout <pr-number>` - checkout PR branch locally (repo auto-detected)
+- [x] `bb pr create` from current branch without specifying source — `--source` defaults to the current git branch
 
 #### Enhanced Interactive Mode
 - [ ] Add `-i` flag to more commands (branch, issue, etc.)
