@@ -112,7 +112,7 @@ These must be resolved before a public release. See `review.md` for full details
 - [ ] PR metrics (time to merge, etc.)
 
 #### Bulk Operations
-- [ ] Bulk PR operations (approve multiple, merge multiple)
+- [x] Bulk PR operations — `bb pr bulk approve/decline/merge <repo> <id...>`
 - [ ] Bulk issue updates
 - [x] Export operations (PRs, issues to CSV/JSON) — global `--csv` (and existing `--json`) on every list command
 
