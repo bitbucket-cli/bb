@@ -220,8 +220,8 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		base := baseURL
 		// Honour the embedded client's configured server (tests point this at an
 		// httptest server; production uses the API base URL).
-		if c.Client != nil && c.Client.Server != "" {
-			base = strings.TrimSuffix(c.Client.Server, "/")
+		if c.Client != nil && c.Server != "" {
+			base = strings.TrimSuffix(c.Server, "/")
 		}
 		url = base + path
 	}
@@ -261,8 +261,8 @@ func (c *Client) RequestRaw(ctx context.Context, method, path, contentType strin
 	url := path
 	if !strings.HasPrefix(path, "http") {
 		base := baseURL
-		if c.Client != nil && c.Client.Server != "" {
-			base = strings.TrimSuffix(c.Client.Server, "/")
+		if c.Client != nil && c.Server != "" {
+			base = strings.TrimSuffix(c.Server, "/")
 		}
 		url = base + path
 	}

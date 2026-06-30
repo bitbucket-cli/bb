@@ -1,0 +1,37 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+  settings:
+    staticcheck:
+      # Drop purely stylistic "quickfix" suggestions.
+      checks:
+        - all
+        - -QF1003 # tagged-switch suggestion
+        - -QF1008 # embedded-field selector suggestion
+        - -ST1000 # package-comment requirement
+        - -ST1003 # initialism naming (e.g. Html -> HTML)
+        - -ST1020 # exported-function comment wording
+        - -ST1021 # exported-type comment wording
+  exclusions:
+    generated: lax
+    paths:
+      - generated
+    rules:
+      # Pre-existing test scaffolding / minor test-only findings.
+      - path: _test\.go
+        linters:
+          - unused
+          - ineffassign
+      - path: _test\.go
+        text: "SA9003|SA5011|SA4006"
+
+# Note: errcheck is intentionally disabled for now — the codebase has many
+# deliberate unchecked errors on cleanup/error-path calls (resp.Body.Close,
+# json.Decode of an already-failed response). Worth revisiting incrementally.
