@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/ThomasRedstone/bb/internal/git"
@@ -10,6 +12,26 @@ import (
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
+
+// prTemplatePaths are searched (relative to the working directory) for a default
+// pull request description when --body is not given.
+var prTemplatePaths = []string{
+	".bitbucket/pull_request_template.md",
+	"pull_request_template.md",
+	".github/pull_request_template.md",
+	"docs/pull_request_template.md",
+}
+
+// loadPRTemplate returns the contents of the first PR template found under dir,
+// or "" when none exists.
+func loadPRTemplate(dir string) string {
+	for _, p := range prTemplatePaths {
+		if data, err := os.ReadFile(filepath.Join(dir, p)); err == nil {
+			return string(data)
+		}
+	}
+	return ""
+}
 
 // Mockable git operations for testing.
 var (

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
@@ -146,6 +148,34 @@ func TestRunPRComment_Inline(t *testing.T) {
 	}
 	if gotLine != 42 {
 		t.Errorf("inline.to = %v, want 42", gotLine)
+	}
+}
+
+func TestLoadPRTemplate(t *testing.T) {
+	dir := t.TempDir()
+
+	// No template yet.
+	if got := loadPRTemplate(dir); got != "" {
+		t.Errorf("loadPRTemplate(empty) = %q, want \"\"", got)
+	}
+
+	// .github template is found.
+	if err := os.MkdirAll(filepath.Join(dir, ".github"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".github", "pull_request_template.md"), []byte("## Summary"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadPRTemplate(dir); got != "## Summary" {
+		t.Errorf("loadPRTemplate = %q, want '## Summary'", got)
+	}
+
+	// A higher-precedence template wins.
+	if err := os.WriteFile(filepath.Join(dir, "pull_request_template.md"), []byte("ROOT"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := loadPRTemplate(dir); got != "ROOT" {
+		t.Errorf("loadPRTemplate precedence = %q, want ROOT", got)
 	}
 }
 

@@ -324,6 +324,11 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 		prSource = branch
 	}
 
+	// Default the description from a PR template when --body is not given.
+	if prBody == "" {
+		prBody = loadPRTemplate(".")
+	}
+
 	// If destination not specified, we need to get the repo to find the main branch
 	destBranch := prDest
 	if destBranch == "" {
