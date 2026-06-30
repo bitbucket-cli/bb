@@ -23,12 +23,15 @@ var (
 	authGetStatus                 = auth.GetStatus
 	authSetClientCreds            = config.SetClientCredentials
 	authHasStoredTokens           = auth.HasStoredTokens
+	authGetScopes                 = config.GetScopes
+	authSetScopes                 = config.SetScopes
 	authStdinReader     io.Reader = os.Stdin
 )
 
 var (
 	authFlagClientID     string
 	authFlagClientSecret string
+	authFlagScopes       string
 )
 
 var authCmd = &cobra.Command{
@@ -45,8 +48,23 @@ var authLoginCmd = &cobra.Command{
 You need to create an OAuth consumer in your Bitbucket workspace settings first:
 1. Go to Workspace settings > OAuth consumers > Add consumer
 2. Set callback URL to: http://localhost:34106/callback
-3. Select permissions: Account, Repositories, Pull requests, Pipelines
+3. Grant the permissions you want this CLI to have (see Scopes below)
 4. Save and note down the Key (client ID) and Secret
+
+Scopes (--scopes):
+  Choose a level — read | write | admin — or pass an explicit comma-separated
+  list. Default is "write". An explicitly chosen level is saved to the config
+  and reused on the next login.
+    read   account + read-only repository, pull request, pipeline access
+    write  read + repository/pull request/pipeline write
+    admin  write + repository:admin (required to CREATE repositories)
+
+  IMPORTANT: the requested scopes do NOT narrow the issued token. Bitbucket
+  always grants the access token the OAuth consumer's full configured
+  permissions; the request is only validated against the consumer and fails if
+  it asks for a scope the consumer wasn't granted. So the real least-privilege
+  control is which permissions you grant the consumer in step 3 — pick a level
+  here that matches it, and login will fail fast if they don't line up.
 
 Alternative: Set the BITBUCKET_API_TOKEN environment variable to skip the
 OAuth flow entirely:
@@ -76,6 +94,7 @@ var authStatusCmd = &cobra.Command{
 func init() {
 	authLoginCmd.Flags().StringVar(&authFlagClientID, "client-id", "", "OAuth client ID (Key) — avoid shell history: prefer BB_CLIENT_ID env var")
 	authLoginCmd.Flags().StringVar(&authFlagClientSecret, "client-secret", "", "OAuth client secret — avoid shell history: prefer BB_CLIENT_SECRET env var")
+	authLoginCmd.Flags().StringVar(&authFlagScopes, "scopes", "", fmt.Sprintf("scope level (%s) or explicit comma-separated list; default %q (persisted to config)", strings.Join(auth.ScopePresetNames(), "|"), auth.DefaultScopeLevel))
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authStatusCmd)
@@ -125,11 +144,24 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Resolve the requested scope level: --scopes flag > config > default level.
+	// This is validated against the OAuth consumer at login (it fails fast if it
+	// asks for scopes the consumer wasn't granted) but does NOT narrow the issued
+	// token — Bitbucket always grants the consumer's full configured scopes.
+	scopeSpec := authFlagScopes
+	if scopeSpec == "" {
+		scopeSpec = authGetScopes()
+	}
+	scopes, err := auth.ResolveScopes(scopeSpec)
+	if err != nil {
+		return err
+	}
+
 	// Perform OAuth login
 	oauthCfg := auth.OAuthConfig{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		Scopes:       auth.DefaultScopes(),
+		Scopes:       scopes,
 	}
 
 	tokens, err := authLogin(oauthCfg)
@@ -140,6 +172,13 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	// Store tokens
 	if err := authStoreTokens(tokens); err != nil {
 		return fmt.Errorf("failed to store tokens: %w", err)
+	}
+
+	// Remember an explicitly chosen level so the next login reuses it.
+	if authFlagScopes != "" {
+		if err := authSetScopes(authFlagScopes); err != nil {
+			output.Error("Failed to save scope preference: %v", err)
+		}
 	}
 
 	output.Success("Logged in to Bitbucket")

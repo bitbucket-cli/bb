@@ -738,6 +738,58 @@ func TestDefaultScopes(t *testing.T) {
 	}
 }
 
+func TestResolveScopes(t *testing.T) {
+	// Empty spec -> default level (write), which includes a write scope but not admin.
+	def, err := ResolveScopes("")
+	if err != nil {
+		t.Fatalf("ResolveScopes(\"\") error: %v", err)
+	}
+	if !containsScope(def, "repository:write") {
+		t.Errorf("default level should include repository:write, got %v", def)
+	}
+	if containsScope(def, "repository:admin") {
+		t.Errorf("default level should NOT include repository:admin, got %v", def)
+	}
+
+	// Presets are ordered by privilege; admin is a superset of write of read.
+	read, _ := ResolveScopes("read")
+	write, _ := ResolveScopes("write")
+	admin, _ := ResolveScopes("admin")
+	if containsScope(read, "repository:write") {
+		t.Errorf("read should not include repository:write, got %v", read)
+	}
+	if !containsScope(admin, "repository:admin") {
+		t.Errorf("admin should include repository:admin, got %v", admin)
+	}
+	if len(read) >= len(write) || len(write) >= len(admin) {
+		t.Errorf("expected read < write < admin in scope count: %d/%d/%d", len(read), len(write), len(admin))
+	}
+
+	// Explicit list (comma and space separated) is passed through verbatim.
+	explicit, err := ResolveScopes("account, pipeline repository")
+	if err != nil {
+		t.Fatalf("ResolveScopes(explicit) error: %v", err)
+	}
+	want := []string{"account", "pipeline", "repository"}
+	if len(explicit) != len(want) {
+		t.Fatalf("explicit list = %v, want %v", explicit, want)
+	}
+	for i, w := range want {
+		if explicit[i] != w {
+			t.Errorf("explicit[%d] = %q, want %q", i, explicit[i], w)
+		}
+	}
+}
+
+func containsScope(scopes []string, want string) bool {
+	for _, s := range scopes {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestBuildAuthURL(t *testing.T) {
 	url := buildAuthURL("client123", "state456", []string{"repo", "pr"})
 
