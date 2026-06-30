@@ -3,6 +3,7 @@ package bitbucket
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -205,6 +206,51 @@ func (c *Client) GetURL(ctx context.Context, url string) (*http.Response, error)
 		return c.httpClient.Do(req)
 	}
 	// Unauthenticated client (e.g. created directly in tests).
+	return http.DefaultClient.Do(req)
+}
+
+// Request makes an authenticated request with an optional JSON body and returns
+// the raw response. It routes through the same credential/refresh layer as the
+// generated client, and is used for Bitbucket endpoints the generated client
+// doesn't cover (e.g. pipeline/repository variables). A path beginning with
+// "http" is used verbatim; otherwise it is resolved against the API base URL.
+func (c *Client) Request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+	url := path
+	if !strings.HasPrefix(path, "http") {
+		base := baseURL
+		// Honour the embedded client's configured server (tests point this at an
+		// httptest server; production uses the API base URL).
+		if c.Client != nil && c.Client.Server != "" {
+			base = strings.TrimSuffix(c.Client.Server, "/")
+		}
+		url = base + path
+	}
+
+	var reader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode request body: %w", err)
+		}
+		reader = bytes.NewReader(b)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Prefer the auth client (credentials + 401 refresh). Fall back to the
+	// embedded client's HTTP doer, which tests set to reach the httptest server.
+	if c.httpClient != nil {
+		return c.httpClient.Do(req)
+	}
+	if c.Client != nil && c.Client.Client != nil {
+		return c.Client.Client.Do(req)
+	}
 	return http.DefaultClient.Do(req)
 }
 

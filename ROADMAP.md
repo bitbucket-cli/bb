@@ -68,7 +68,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 #### Pipeline Improvements
 - [ ] Stream pipeline logs in real-time
-- [ ] Pipeline variable management
+- [x] Pipeline variable management — `bb variable list/set/delete` (repo pipeline variables)
 - [ ] Schedule management
 - [ ] Caches and artifacts management
 
@@ -83,7 +83,7 @@ These must be resolved before a public release. See `review.md` for full details
 #### Repository Management
 - [ ] Repository settings management
 - [x] Access keys (SSH keys) management — `bb deploy-key list/add/view/delete`
-- [ ] Repository variables for pipelines
+- [x] Repository variables for pipelines — `bb variable list/set/delete`
 - [ ] Branch merge strategies configuration
 
 #### Snippets Support
