@@ -82,7 +82,7 @@ These must be resolved before a public release. See `review.md` for full details
 
 #### Repository Management
 - [ ] Repository settings management
-- [ ] Access keys (SSH keys) management
+- [x] Access keys (SSH keys) management — `bb deploy-key list/add/view/delete`
 - [ ] Repository variables for pipelines
 - [ ] Branch merge strategies configuration
 

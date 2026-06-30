@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strconv"
 
+	generated "github.com/ThomasRedstone/bb/generated/bitbucket"
 	"github.com/ThomasRedstone/bb/internal/config"
 	"github.com/ThomasRedstone/bb/internal/output"
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
-	generated "github.com/ThomasRedstone/bb/generated/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ var (
 
 // Mockable dependencies for testing
 var (
-	snippetNewAPIClient = api.NewClient
+	snippetNewAPIClient           = api.NewClient
 	snippetStdin        io.Reader = os.Stdin
 )
 

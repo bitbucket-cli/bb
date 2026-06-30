@@ -136,8 +136,8 @@ func TestRunDownloadList_NoClient(t *testing.T) {
 
 func TestHumanSize(t *testing.T) {
 	cases := map[int64]string{
-		512:            "512B",
-		2048:           "2.0KB",
+		512:             "512B",
+		2048:            "2.0KB",
 		5 * 1024 * 1024: "5.0MB",
 	}
 	for in, want := range cases {
