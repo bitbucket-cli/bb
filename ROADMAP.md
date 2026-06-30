@@ -109,7 +109,7 @@ These must be resolved before a public release. See `review.md` for full details
 #### Reports and Analytics
 - [ ] Pipeline analytics and statistics
 - [x] Commit activity reports — `bb commit activity` (commits per author)
-- [ ] PR metrics (time to merge, etc.)
+- [x] PR metrics — `bb pr metrics` (count, avg/median time to merge)
 
 #### Bulk Operations
 - [x] Bulk PR operations — `bb pr bulk approve/decline/merge <repo> <id...>`
