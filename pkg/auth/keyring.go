@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/zalando/go-keyring"
 )
+
+// refreshBufferSeconds refreshes the access token slightly before its actual
+// expiry, to avoid racing a request against the boundary.
+const refreshBufferSeconds = 120
 
 const (
 	serviceName     = "bb-cli"
@@ -26,12 +31,30 @@ type TokenData struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"`
+	ExpiresAt    int64  `json:"expires_at"` // absolute Unix seconds; computed at store time
 	TokenType    string `json:"token_type"`
 	Scopes       string `json:"scopes"`
 }
 
+// NeedsRefresh reports whether the access token has expired or is within the
+// refresh buffer of expiring. Returns false when expiry is unknown
+// (ExpiresAt == 0, e.g. tokens stored by an older version), so callers fall
+// back to optimistic use plus reactive 401 refresh.
+func (t *TokenData) NeedsRefresh() bool {
+	if t.ExpiresAt == 0 {
+		return false
+	}
+	return time.Now().Unix() >= t.ExpiresAt-refreshBufferSeconds
+}
+
 // StoreTokens saves tokens to the system keyring
 func StoreTokens(data *TokenData) error {
+	// Record an absolute expiry so callers can refresh proactively rather than
+	// relying on a 401 (which Bitbucket masks as 404 for private resources).
+	if data.ExpiresAt == 0 && data.ExpiresIn > 0 {
+		data.ExpiresAt = time.Now().Unix() + data.ExpiresIn
+	}
+
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal token data: %w", err)

@@ -79,8 +79,17 @@ func GetCredential() (Credential, error) {
 		return Credential{}, fmt.Errorf("not logged in")
 	}
 
-	// Access tokens expire in 2 hours; we don't store expiry, so use the token
-	// optimistically — the API client wrapper handles refresh on 401.
+	// Refresh proactively when the token is expired or about to be. Bitbucket
+	// returns 404 (not 401) for expired-token access to private resources, so
+	// reactive 401 refresh alone leaves users looking "logged out".
+	if tokens.NeedsRefresh() && tokens.RefreshToken != "" {
+		if refreshed, rErr := RefreshAccessToken(); rErr == nil {
+			tokens = refreshed
+		}
+		// On refresh failure fall through with the existing token: the request
+		// surfaces the auth error, and the client's 401 path may still recover.
+	}
+
 	return Credential{Scheme: SchemeBearer, Token: tokens.AccessToken}, nil
 }
 

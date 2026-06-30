@@ -332,6 +332,49 @@ func TestGetValidToken_APIToken(t *testing.T) {
 	}
 }
 
+func TestTokenDataNeedsRefresh(t *testing.T) {
+	now := time.Now().Unix()
+	cases := []struct {
+		name string
+		td   TokenData
+		want bool
+	}{
+		{"unknown expiry (older token)", TokenData{ExpiresAt: 0}, false},
+		{"already expired", TokenData{ExpiresAt: now - 10}, true},
+		{"within refresh buffer", TokenData{ExpiresAt: now + 60}, true},
+		{"comfortably fresh", TokenData{ExpiresAt: now + 3600}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.td.NeedsRefresh(); got != c.want {
+				t.Errorf("NeedsRefresh() = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestStoreTokens_ComputesExpiresAt(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+
+	td := &TokenData{AccessToken: "a", RefreshToken: "r", ExpiresIn: 7200}
+	before := time.Now().Unix()
+	if err := StoreTokens(td); err != nil {
+		t.Fatalf("StoreTokens error: %v", err)
+	}
+	if td.ExpiresAt < before+7200-5 || td.ExpiresAt > time.Now().Unix()+7200+5 {
+		t.Errorf("ExpiresAt = %d, want ~now+7200", td.ExpiresAt)
+	}
+
+	loaded, err := LoadTokens()
+	if err != nil {
+		t.Fatalf("LoadTokens error: %v", err)
+	}
+	if loaded.ExpiresAt != td.ExpiresAt {
+		t.Errorf("persisted ExpiresAt = %d, want %d", loaded.ExpiresAt, td.ExpiresAt)
+	}
+}
+
 func TestGetAPIEmail(t *testing.T) {
 	os.Unsetenv("BITBUCKET_EMAIL")
 	if GetAPIEmail() != "" {
