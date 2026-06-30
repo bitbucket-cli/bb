@@ -132,14 +132,14 @@ These must be resolved before a public release. See `review.md` for full details
 - [x] Man pages generation — hidden `bb man <dir>` (cobra/doc)
 - [ ] Comprehensive README with examples
 - [x] Contributing guide — CONTRIBUTING.md
-- [ ] API documentation
+- [x] API documentation — `bb man <dir> --format markdown` (cobra/doc) generates per-command reference
 
 ### Build and Distribution
 - [x] GitHub Actions CI/CD pipeline (ci.yml + release.yml + .goreleaser.yaml)
 - [x] Cross-platform binaries (Linux, macOS, Windows) — goreleaser builds amd64+arm64
 - [x] Homebrew formula — goreleaser publishes to ThomasRedstone/homebrew-tap
 - [x] APT/RPM packages — goreleaser nfpms (deb/rpm)
-- [ ] Scoop manifest for Windows
+- [x] Scoop manifest for Windows — goreleaser scoops (needs a scoop-bucket repo + token, like the Homebrew tap)
 
 ### Performance
 - [ ] Response caching for frequently accessed data
