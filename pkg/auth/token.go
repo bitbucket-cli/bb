@@ -142,6 +142,18 @@ func RefreshAccessToken() (*TokenData, error) {
 		return nil, err
 	}
 
+	// Bitbucket Cloud does not return a refresh_token in the refresh response —
+	// the original one stays valid. Without this, StoreTokens would overwrite the
+	// stored refresh token with an empty string, so the *next* refresh would fail
+	// and force a full re-login. Carry over the existing refresh token (and scopes)
+	// when the response omits them.
+	if newTokens.RefreshToken == "" {
+		newTokens.RefreshToken = tokens.RefreshToken
+	}
+	if newTokens.Scopes == "" {
+		newTokens.Scopes = tokens.Scopes
+	}
+
 	// Store the new tokens
 	if err := StoreTokens(&newTokens); err != nil {
 		return nil, fmt.Errorf("failed to store refreshed tokens: %w", err)

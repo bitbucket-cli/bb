@@ -580,6 +580,48 @@ func TestRefreshAccessToken_NoClientCredentials(t *testing.T) {
 	}
 }
 
+func TestRefreshAccessToken_PreservesRefreshTokenWhenOmitted(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	defer resetMocks()
+
+	// Bitbucket's refresh response omits refresh_token.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "new-access-token",
+			"expires_in":   7200,
+			"token_type":   "Bearer",
+		})
+	}))
+	defer server.Close()
+	tokenURL = server.URL
+
+	os.Setenv("BB_CLIENT_ID", "test-client-id")
+	os.Setenv("BB_CLIENT_SECRET", "test-client-secret")
+	defer os.Unsetenv("BB_CLIENT_ID")
+	defer os.Unsetenv("BB_CLIENT_SECRET")
+
+	StoreTokens(&TokenData{AccessToken: "old-access", RefreshToken: "original-refresh"})
+
+	newTokens, err := RefreshAccessToken()
+	if err != nil {
+		t.Fatalf("RefreshAccessToken error: %v", err)
+	}
+	if newTokens.RefreshToken != "original-refresh" {
+		t.Errorf("returned RefreshToken = %q, want it preserved as original-refresh", newTokens.RefreshToken)
+	}
+
+	// And it must be persisted, so the next refresh still works.
+	stored, err := LoadTokens()
+	if err != nil {
+		t.Fatalf("LoadTokens error: %v", err)
+	}
+	if stored.RefreshToken != "original-refresh" {
+		t.Errorf("stored RefreshToken = %q, want original-refresh (not wiped)", stored.RefreshToken)
+	}
+}
+
 func TestRefreshAccessToken_Success(t *testing.T) {
 	cleanup := setupTestHome(t)
 	defer cleanup()
