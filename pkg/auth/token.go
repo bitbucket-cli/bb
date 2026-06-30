@@ -187,10 +187,12 @@ const (
 
 // AuthStatus returns information about the current authentication state
 type AuthStatus struct {
-	LoggedIn bool
-	Method   AuthMethod
-	Scheme   string // auth scheme when Method is token: "basic" or "bearer"
-	Scopes   string
+	LoggedIn        bool
+	Method          AuthMethod
+	Scheme          string // auth scheme when Method is token: "basic" or "bearer"
+	Scopes          string
+	ExpiresAt       int64 // absolute Unix expiry of the OAuth access token (0 = unknown)
+	HasRefreshToken bool  // whether a refresh token is stored (enables silent renewal)
 }
 
 // GetStatus returns the current authentication status
@@ -219,8 +221,10 @@ func GetStatus() (*AuthStatus, error) {
 	}
 
 	return &AuthStatus{
-		LoggedIn: true,
-		Method:   AuthMethodOAuth,
-		Scopes:   tokens.Scopes,
+		LoggedIn:        true,
+		Method:          AuthMethodOAuth,
+		Scopes:          tokens.Scopes,
+		ExpiresAt:       tokens.ExpiresAt,
+		HasRefreshToken: tokens.RefreshToken != "",
 	}, nil
 }

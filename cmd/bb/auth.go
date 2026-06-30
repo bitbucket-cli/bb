@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ThomasRedstone/bb/internal/config"
 	"github.com/ThomasRedstone/bb/internal/output"
@@ -261,7 +262,30 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		if status.Scopes != "" {
 			output.Info("Scopes: %s", status.Scopes)
 		}
+		printTokenExpiry(status)
 	}
 
 	return nil
+}
+
+// printTokenExpiry reports access-token expiry and whether silent refresh is
+// available — the things that determine whether you should ever need to re-login.
+func printTokenExpiry(status *auth.AuthStatus) {
+	switch {
+	case status.ExpiresAt == 0:
+		output.Info("Access token: expiry unknown (stored by an older version — run 'bb auth login' once to enable proactive refresh)")
+	default:
+		remaining := time.Until(time.Unix(status.ExpiresAt, 0))
+		if remaining > 0 {
+			output.Info("Access token: valid for %s", remaining.Round(time.Second))
+		} else {
+			output.Info("Access token: expired %s ago (will refresh on next use)", (-remaining).Round(time.Second))
+		}
+	}
+
+	if status.HasRefreshToken {
+		output.Info("Refresh token: present — sessions renew automatically, no re-login needed")
+	} else {
+		output.Info("Refresh token: MISSING — you'll be forced to re-login when the access token expires; run 'bb auth login'")
+	}
 }
