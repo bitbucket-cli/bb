@@ -5,18 +5,23 @@ This document outlines planned features and improvements for the Bitbucket CLI (
 ## Current Status
 
 The CLI currently supports:
-- **Authentication**: OAuth login/logout with secure token storage
+- **Authentication**: OAuth login/logout (selectable scope levels) with secure token storage; API-token fallback
 - **Repositories**: List, view, clone, create, update, fork, delete
-- **Pull Requests**: List, view, create, merge, approve, comment, diff
+- **Pull Requests**: List, view, create (source defaults to current branch), merge, approve, request-changes, decline, comment (incl. inline), diff, checkout
 - **Branches**: List, view, create, delete, restrictions
-- **Pipelines**: List, view, trigger, stop, steps, logs
+- **Commits**: List (by branch/ref), view
+- **Pipelines**: List, view, trigger, stop, steps, logs; schedules (list/view/delete); caches (list/delete); variables (list/set/delete)
 - **Issues**: List, view, create, update, delete, comments
 - **Tags**: List, view, create, delete
 - **Webhooks**: List, view, create, delete
+- **Deploy keys**: List, add, view, delete
+- **Snippets**: List, view, create, update, delete
+- **Downloads**: List, upload, get, delete
 - **Deployments**: List environments, create, delete
 - **Workspaces**: List, view, members, projects
 - **Configuration**: Manage CLI settings
 - **Shell Completions**: Bash, Zsh, Fish, PowerShell
+- **Git integration**: Auto-detect workspace/repo from the origin remote
 
 ## Open-Source Release Blockers
 
