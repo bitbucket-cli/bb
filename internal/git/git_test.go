@@ -1,6 +1,9 @@
 package git
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestParseRemoteURL(t *testing.T) {
 	cases := []struct {
@@ -36,6 +39,53 @@ func TestParseRemoteURL(t *testing.T) {
 		}
 	}
 }
+
+func TestGitOpsInvokeCorrectArgs(t *testing.T) {
+	orig := runGit
+	defer func() { runGit = orig }()
+
+	var gotArgs []string
+	runGit = func(args ...string) (string, error) {
+		gotArgs = args
+		return "the-branch", nil
+	}
+
+	if err := Fetch("origin", "feature/x"); err != nil {
+		t.Fatalf("Fetch error: %v", err)
+	}
+	if len(gotArgs) != 3 || gotArgs[0] != "fetch" || gotArgs[1] != "origin" || gotArgs[2] != "feature/x" {
+		t.Errorf("Fetch args = %v, want [fetch origin feature/x]", gotArgs)
+	}
+
+	if err := Checkout("feature/x"); err != nil {
+		t.Fatalf("Checkout error: %v", err)
+	}
+	if len(gotArgs) != 2 || gotArgs[0] != "checkout" || gotArgs[1] != "feature/x" {
+		t.Errorf("Checkout args = %v, want [checkout feature/x]", gotArgs)
+	}
+
+	branch, err := CurrentBranch()
+	if err != nil || branch != "the-branch" {
+		t.Errorf("CurrentBranch = %q, %v; want the-branch", branch, err)
+	}
+	if len(gotArgs) != 3 || gotArgs[0] != "rev-parse" {
+		t.Errorf("CurrentBranch args = %v, want rev-parse ...", gotArgs)
+	}
+}
+
+func TestDetectRepo_Error(t *testing.T) {
+	orig := runGit
+	defer func() { runGit = orig }()
+
+	runGit = func(args ...string) (string, error) {
+		return "", errInjected
+	}
+	if _, _, err := DetectRepo(); err == nil {
+		t.Error("expected error when origin remote can't be read")
+	}
+}
+
+var errInjected = fmt.Errorf("no remote")
 
 func TestDetectRepo(t *testing.T) {
 	orig := runGit
