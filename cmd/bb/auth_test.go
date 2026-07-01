@@ -716,3 +716,34 @@ func TestAuthSubcommands(t *testing.T) {
 		}
 	}
 }
+
+func TestRunAuthRefresh_APITokenErrors(t *testing.T) {
+	os.Setenv("BITBUCKET_API_TOKEN", "tok")
+	defer os.Unsetenv("BITBUCKET_API_TOKEN")
+	if err := runAuthRefresh(authRefreshCmd, nil); err == nil {
+		t.Error("expected error when using BITBUCKET_API_TOKEN")
+	}
+}
+
+func TestRunAuthRefresh_NotLoggedIn(t *testing.T) {
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	orig := authHasStoredTokens
+	defer func() { authHasStoredTokens = orig }()
+	authHasStoredTokens = func() bool { return false }
+	if err := runAuthRefresh(authRefreshCmd, nil); err == nil {
+		t.Error("expected error when not logged in")
+	}
+}
+
+func TestRunAuthRefresh_Success(t *testing.T) {
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	origHas, origRefresh := authHasStoredTokens, authRefreshTokens
+	defer func() { authHasStoredTokens = origHas; authRefreshTokens = origRefresh }()
+	authHasStoredTokens = func() bool { return true }
+	authRefreshTokens = func() (*auth.TokenData, error) {
+		return &auth.TokenData{AccessToken: "new", ExpiresAt: 1}, nil
+	}
+	if err := runAuthRefresh(authRefreshCmd, nil); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

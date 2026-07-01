@@ -24,6 +24,7 @@ var (
 	authGetStatus                     = auth.GetStatus
 	authSetClientCreds                = config.SetClientCredentials
 	authHasStoredTokens               = auth.HasStoredTokens
+	authRefreshTokens                 = auth.RefreshAccessToken
 	authGetScopes                     = config.GetScopes
 	authSetScopes                     = config.SetScopes
 	authBuildAuthorizeURL             = auth.BuildAuthorizeURL
@@ -104,6 +105,17 @@ var authStatusCmd = &cobra.Command{
 	RunE:  runAuthStatus,
 }
 
+var authRefreshCmd = &cobra.Command{
+	Use:   "refresh",
+	Short: "Refresh the OAuth access token",
+	Long: `Exchange the stored refresh token for a new access token.
+
+Useful to verify silent refresh works, to force a fresh token before a long
+operation, or to record an expiry on a token stored by an older version. Not
+applicable when authenticating via BITBUCKET_API_TOKEN.`,
+	RunE: runAuthRefresh,
+}
+
 func init() {
 	authLoginCmd.Flags().StringVar(&authFlagClientID, "client-id", "", "OAuth client ID (Key) — avoid shell history: prefer BB_CLIENT_ID env var")
 	authLoginCmd.Flags().StringVar(&authFlagClientSecret, "client-secret", "", "OAuth client secret — avoid shell history: prefer BB_CLIENT_SECRET env var")
@@ -113,6 +125,27 @@ func init() {
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authStatusCmd)
+	authCmd.AddCommand(authRefreshCmd)
+}
+
+func runAuthRefresh(cmd *cobra.Command, args []string) error {
+	if auth.HasAPIToken() {
+		return fmt.Errorf("authenticated via BITBUCKET_API_TOKEN — nothing to refresh (refresh applies to OAuth logins only)")
+	}
+	if !authHasStoredTokens() {
+		return fmt.Errorf("not logged in — run 'bb auth login' first")
+	}
+
+	tokens, err := authRefreshTokens()
+	if err != nil {
+		return fmt.Errorf("refresh failed (run 'bb auth login' to re-authenticate): %w", err)
+	}
+
+	output.Success("Access token refreshed")
+	if tokens.ExpiresAt > 0 {
+		output.Info("Valid for %s", time.Until(time.Unix(tokens.ExpiresAt, 0)).Round(time.Second))
+	}
+	return nil
 }
 
 func runAuthLogin(cmd *cobra.Command, args []string) error {
@@ -257,11 +290,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		} else {
 			output.Info("Method: BITBUCKET_API_TOKEN (Bearer token)")
 		}
-		if auth.LikelyAtlassianTokenWithoutEmail() {
-			output.Error("⚠ BITBUCKET_API_TOKEN looks like an Atlassian API token, but BITBUCKET_EMAIL is not set.")
-			output.Error("  Atlassian tokens need Basic auth — set BITBUCKET_EMAIL=<your-account-email>, or unset")
-			output.Error("  BITBUCKET_API_TOKEN to use your OAuth login. (The env token takes precedence over OAuth.)")
-		} else if authHasStoredTokens() {
+		if authHasStoredTokens() {
 			output.Info("Note: an OAuth login is also stored, but BITBUCKET_API_TOKEN takes precedence.")
 			output.Info("      Unset BITBUCKET_API_TOKEN to use the OAuth session (which auto-refreshes).")
 		}

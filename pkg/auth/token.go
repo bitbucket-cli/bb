@@ -21,18 +21,6 @@ func HasAPIToken() bool {
 	return GetAPIToken() != ""
 }
 
-// LikelyAtlassianTokenWithoutEmail reports a common misconfiguration: a
-// BITBUCKET_API_TOKEN that looks like an Atlassian API token (ATATT/ATCTT
-// prefix) — which requires Basic auth — while BITBUCKET_EMAIL is unset, so bb
-// would send it as a Bearer token and Bitbucket would reject every request.
-func LikelyAtlassianTokenWithoutEmail() bool {
-	t := GetAPIToken()
-	if t == "" || GetAPIEmail() != "" {
-		return false
-	}
-	return strings.HasPrefix(t, "ATATT") || strings.HasPrefix(t, "ATCTT")
-}
-
 // GetAPIEmail returns the BITBUCKET_EMAIL if set. When paired with
 // BITBUCKET_API_TOKEN it selects HTTP Basic auth (the scheme required by
 // Atlassian scoped API tokens, the replacement for deprecated app passwords).
