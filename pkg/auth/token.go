@@ -105,12 +105,15 @@ func GetValidToken() (string, error) {
 
 // RefreshAccessToken uses the refresh token to get a new access token
 func RefreshAccessToken() (*TokenData, error) {
+	debugLog("RefreshAccessToken: start")
 	tokens, err := LoadTokens()
 	if err != nil {
+		debugLog("RefreshAccessToken: LoadTokens failed: %v", err)
 		return nil, fmt.Errorf("no tokens to refresh: %w", err)
 	}
 
 	if tokens.RefreshToken == "" {
+		debugLog("RefreshAccessToken: stored token has NO refresh_token")
 		return nil, fmt.Errorf("no refresh token available")
 	}
 
@@ -143,6 +146,7 @@ func RefreshAccessToken() (*TokenData, error) {
 	if resp.StatusCode != http.StatusOK {
 		var errResp map[string]interface{}
 		json.NewDecoder(resp.Body).Decode(&errResp)
+		debugLog("RefreshAccessToken: token endpoint returned %d: %v", resp.StatusCode, errResp)
 		return nil, fmt.Errorf("token refresh failed: %v", errResp)
 	}
 
@@ -163,8 +167,11 @@ func RefreshAccessToken() (*TokenData, error) {
 		newTokens.Scopes = tokens.Scopes
 	}
 
+	debugLog("RefreshAccessToken: success (new_refresh_token_in_response=%v expires_in=%d)", newTokens.RefreshToken != tokens.RefreshToken, newTokens.ExpiresIn)
+
 	// Store the new tokens
 	if err := StoreTokens(&newTokens); err != nil {
+		debugLog("RefreshAccessToken: StoreTokens failed: %v", err)
 		return nil, fmt.Errorf("failed to store refreshed tokens: %w", err)
 	}
 
