@@ -30,12 +30,12 @@ func TestWorkspaceArg(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back to git remote", func(t *testing.T) {
+	t.Run("uses BB_WORKSPACE when no repo positional", func(t *testing.T) {
 		repoOverride = ""
-		os.Unsetenv("BB_WORKSPACE")
-		detectRepo = func() (string, string, error) { return "gitws", "gitrepo", nil }
-		if ws, err := workspaceArg(nil); err != nil || ws != "gitws" {
-			t.Fatalf("got %q err=%v, want gitws", ws, err)
+		os.Setenv("BB_WORKSPACE", "envws")
+		defer os.Unsetenv("BB_WORKSPACE")
+		if ws, err := workspaceArg(nil); err != nil || ws != "envws" {
+			t.Fatalf("got %q err=%v, want envws (env/config takes precedence over git)", ws, err)
 		}
 	})
 }
