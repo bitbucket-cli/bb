@@ -8,18 +8,19 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
+	"github.com/ThomasRedstone/bb/internal/interactive"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
-	branchFrom            string
-	restrictionKind       string
-	restrictionPattern    string
-	restrictionValue      int
-	restrictionMatchKind  string
+	branchFrom           string
+	restrictionKind      string
+	restrictionPattern   string
+	restrictionValue     int
+	restrictionMatchKind string
 )
 
 // Mockable dependencies for testing
@@ -34,27 +35,29 @@ var branchCmd = &cobra.Command{
 }
 
 var branchListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List branches",
 	Long:  `List branches in a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runBranchList,
 }
 
 var branchCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo> <branch-name>",
+	Use:   "create [workspace/repo] <branch-name>",
 	Short: "Create a branch",
 	Long:  `Create a new branch in a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runBranchCreate,
 }
 
 var branchDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <branch-name>",
+	Use:   "delete [workspace/repo] [branch-name]",
 	Short: "Delete a branch",
-	Long:  `Delete a branch from a repository.`,
-	Args:  cobra.ExactArgs(2),
-	RunE:  runBranchDelete,
+	Long: `Delete a branch from a repository.
+
+Omit the branch name (or pass -i) to choose one interactively.`,
+	Args: cobra.RangeArgs(0, 2),
+	RunE: runBranchDelete,
 }
 
 var branchRestrictCmd = &cobra.Command{
@@ -64,15 +67,15 @@ var branchRestrictCmd = &cobra.Command{
 }
 
 var branchRestrictListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List branch restrictions",
 	Long:  `List all branch restrictions configured for a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runBranchRestrictList,
 }
 
 var branchRestrictCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create a branch restriction",
 	Long: `Create a new branch restriction.
 
@@ -89,23 +92,23 @@ Available kinds:
 
 Example:
   bb branch restrict create myworkspace/myrepo --kind require_approvals_to_merge --pattern "main" --value 2`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runBranchRestrictCreate,
 }
 
 var branchRestrictDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <restriction-id>",
+	Use:   "delete [workspace/repo] <restriction-id>",
 	Short: "Delete a branch restriction",
 	Long:  `Delete a branch restriction from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runBranchRestrictDelete,
 }
 
 var branchRestrictViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <restriction-id>",
+	Use:   "view [workspace/repo] <restriction-id>",
 	Short: "View a branch restriction",
 	Long:  `View details of a specific branch restriction.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runBranchRestrictView,
 }
 
@@ -128,6 +131,7 @@ func init() {
 
 	branchCmd.AddCommand(branchListCmd)
 	branchCmd.AddCommand(branchCreateCmd)
+	branchDeleteCmd.Flags().BoolP("interactive", "i", false, "Select the branch to delete interactively")
 	branchCmd.AddCommand(branchDeleteCmd)
 	branchCmd.AddCommand(branchRestrictCmd)
 }
@@ -140,7 +144,7 @@ func runBranchList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -237,12 +241,12 @@ func runBranchCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	branchName := args[1]
+	branchName := rest[0]
 
 	// Get source commit/branch
 	sourceBranch := branchFrom
@@ -341,12 +345,22 @@ func runBranchDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 0)
 	if err != nil {
 		return err
 	}
 
-	branchName := args[1]
+	interactiveSel, _ := cmd.Flags().GetBool("interactive")
+	var branchName string
+	if len(rest) > 0 && !interactiveSel {
+		branchName = rest[0]
+	} else {
+		// No branch given (or -i) — let the user pick one interactively.
+		branchName, err = selectBranchInteractively(cmd, client, repoCtx)
+		if err != nil {
+			return err
+		}
+	}
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugRefsBranchesName(
 		ctx,
@@ -369,6 +383,37 @@ func runBranchDelete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// selectBranchInteractively fetches the repo's branches and prompts the user to
+// pick one. Returns an error when not running in a terminal.
+func selectBranchInteractively(cmd *cobra.Command, client *api.Client, repoCtx *api.RepoContext) (string, error) {
+	resp, err := client.GetRepositoriesWorkspaceRepoSlugRefsBranches(cmdCtx(cmd), repoCtx.Workspace, repoCtx.RepoSlug, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to list branches: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("API error: %s", resp.Status)
+	}
+
+	var result struct {
+		Values []struct {
+			Name string `json:"name"`
+		} `json:"values"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if len(result.Values) == 0 {
+		return "", fmt.Errorf("no branches found")
+	}
+
+	names := make([]string, len(result.Values))
+	for i, b := range result.Values {
+		names[i] = b.Name
+	}
+	return interactive.SelectString("Select a branch to delete", names)
+}
+
 func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 	ctx := cmdCtx(cmd)
 
@@ -377,7 +422,7 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -433,11 +478,11 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 			value,
 		})
 		jsonData = append(jsonData, map[string]interface{}{
-			"id":               restriction.ID,
-			"kind":             restriction.Kind,
-			"pattern":          restriction.Pattern,
+			"id":                restriction.ID,
+			"kind":              restriction.Kind,
+			"pattern":           restriction.Pattern,
 			"branch_match_kind": restriction.BranchMatchKind,
-			"value":            restriction.Value,
+			"value":             restriction.Value,
 		})
 	}
 
@@ -452,14 +497,14 @@ func runBranchRestrictCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
 
 	restrictionReq := map[string]interface{}{
-		"kind":             restrictionKind,
-		"pattern":          restrictionPattern,
+		"kind":              restrictionKind,
+		"pattern":           restrictionPattern,
 		"branch_match_kind": restrictionMatchKind,
 	}
 
@@ -509,12 +554,12 @@ func runBranchRestrictDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	restrictionID := args[1]
+	restrictionID := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugBranchRestrictionsId(
 		ctx,
@@ -545,12 +590,12 @@ func runBranchRestrictView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	restrictionID := args[1]
+	restrictionID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugBranchRestrictionsId(
 		ctx,
@@ -568,11 +613,11 @@ func runBranchRestrictView(cmd *cobra.Command, args []string) error {
 	}
 
 	var restriction struct {
-		ID              int      `json:"id"`
-		Kind            string   `json:"kind"`
-		Pattern         string   `json:"pattern"`
-		BranchMatchKind string   `json:"branch_match_kind"`
-		Value           *int     `json:"value"`
+		ID              int    `json:"id"`
+		Kind            string `json:"kind"`
+		Pattern         string `json:"pattern"`
+		BranchMatchKind string `json:"branch_match_kind"`
+		Value           *int   `json:"value"`
 		Users           []struct {
 			DisplayName string `json:"display_name"`
 		} `json:"users"`

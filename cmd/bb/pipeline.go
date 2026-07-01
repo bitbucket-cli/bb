@@ -7,15 +7,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
 	pipelineBranch string
 	pipelineLimit  int
+)
+
+const (
+	defaultPipelineLimit = 25
+	maxPipelinePageLen   = 100
 )
 
 // Mockable dependencies for testing
@@ -31,55 +36,55 @@ var pipelineCmd = &cobra.Command{
 }
 
 var pipelineListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List pipelines",
 	Long:  `List recent pipelines for a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPipelineList,
 }
 
 var pipelineViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <pipeline-uuid>",
+	Use:   "view [workspace/repo] <pipeline-uuid>",
 	Short: "View pipeline details",
 	Long:  `Display detailed information about a pipeline.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineView,
 }
 
 var pipelineTriggerCmd = &cobra.Command{
-	Use:   "trigger <workspace/repo>",
+	Use:   "trigger [workspace/repo]",
 	Short: "Trigger a pipeline",
 	Long:  `Trigger a new pipeline run on a branch.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runPipelineTrigger,
 }
 
 var pipelineStopCmd = &cobra.Command{
-	Use:   "stop <workspace/repo> <pipeline-uuid>",
+	Use:   "stop [workspace/repo] <pipeline-uuid>",
 	Short: "Stop a pipeline",
 	Long:  `Stop a running pipeline.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineStop,
 }
 
 var pipelineStepsCmd = &cobra.Command{
-	Use:   "steps <workspace/repo> <pipeline-uuid>",
+	Use:   "steps [workspace/repo] <pipeline-uuid>",
 	Short: "List pipeline steps",
 	Long:  `List all steps in a pipeline.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runPipelineSteps,
 }
 
 var pipelineLogsCmd = &cobra.Command{
-	Use:   "logs <workspace/repo> <pipeline-uuid> <step-uuid>",
+	Use:   "logs [workspace/repo] <pipeline-uuid> <step-uuid>",
 	Short: "View step logs",
 	Long:  `Display logs for a specific pipeline step.`,
-	Args:  cobra.ExactArgs(3),
+	Args:  cobra.RangeArgs(2, 3),
 	RunE:  runPipelineLogs,
 }
 
 func init() {
-	pipelineListCmd.Flags().IntVarP(&pipelineLimit, "limit", "l", 25, "Maximum number of pipelines to show (0 = all)")
+	pipelineListCmd.Flags().IntVarP(&pipelineLimit, "limit", "l", defaultPipelineLimit, "Maximum number of pipelines to show (0 = all)")
 	pipelineTriggerCmd.Flags().StringVarP(&pipelineBranch, "branch", "b", "", "Branch to run pipeline on (required)")
 	pipelineTriggerCmd.MarkFlagRequired("branch")
 
@@ -99,12 +104,17 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
 
-	params := &bitbucket.GetPipelinesForRepositoryParams{}
+	sort := bitbucket.GetPipelinesForRepositoryParamsSort("-created_on")
+	pagelen := pipelinePageLen(pipelineLimit)
+	params := &bitbucket.GetPipelinesForRepositoryParams{
+		Sort:    &sort,
+		Pagelen: &pagelen,
+	}
 
 	resp, err := client.GetPipelinesForRepository(
 		ctx,
@@ -140,8 +150,14 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to fetch next page: %w", err)
 		}
 		if nextResp.StatusCode != 200 {
+<<<<<<< HEAD
 			nextResp.Body.Close()
 			return fmt.Errorf("API error: %s", nextResp.Status)
+=======
+			status := nextResp.Status
+			nextResp.Body.Close()
+			return fmt.Errorf("API error: %s", status)
+>>>>>>> origin/main
 		}
 		result = bitbucket.PaginatedPipelines{}
 		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
@@ -200,6 +216,13 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 	return output.Print(headers, rows, jsonData)
 }
 
+func pipelinePageLen(limit int) int32 {
+	if limit > 0 && limit < maxPipelinePageLen {
+		return int32(limit)
+	}
+	return maxPipelinePageLen
+}
+
 func runPipelineView(cmd *cobra.Command, args []string) error {
 	ctx := cmdCtx(cmd)
 
@@ -208,12 +231,12 @@ func runPipelineView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	// Ensure UUID is wrapped in braces
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
@@ -287,7 +310,7 @@ func runPipelineTrigger(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -351,12 +374,12 @@ func runPipelineStop(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	// Ensure UUID is wrapped in braces
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
@@ -379,7 +402,7 @@ func runPipelineStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
 	}
 
-	output.Success("Stopped pipeline %s", args[1])
+	output.Success("Stopped pipeline %s", rest[0])
 	return nil
 }
 
@@ -449,12 +472,12 @@ func runPipelineSteps(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
 	}
@@ -542,17 +565,17 @@ func runPipelineLogs(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 2)
 	if err != nil {
 		return err
 	}
 
-	pipelineUUID := args[1]
+	pipelineUUID := rest[0]
 	if !strings.HasPrefix(pipelineUUID, "{") {
 		pipelineUUID = "{" + pipelineUUID + "}"
 	}
 
-	stepUUID := args[2]
+	stepUUID := rest[1]
 	if !strings.HasPrefix(stepUUID, "{") {
 		stepUUID = "{" + stepUUID + "}"
 	}

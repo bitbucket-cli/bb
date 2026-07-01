@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ThomasRedstone/bb/internal/auth"
 	"github.com/ThomasRedstone/bb/internal/config"
+	"github.com/ThomasRedstone/bb/pkg/auth"
 )
 
 // resetAuthMocks restores default implementations
@@ -293,6 +293,66 @@ func TestRunAuthLogin_WithCredentials_LoginFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "login failed") {
 		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestRunAuthLogin_CallbackURL(t *testing.T) {
+	defer resetAuthMocks()
+	defer func() {
+		authExchangeCallbackURL = auth.ExchangeCallbackURL
+		authFlagCallbackURL = ""
+	}()
+
+	authGetClientID = func() string { return "test-id" }
+	authGetClientSecret = func() string { return "test-secret" }
+	var exchanged string
+	authExchangeCallbackURL = func(cfg auth.OAuthConfig, state, pasted string) (*auth.TokenData, error) {
+		exchanged = pasted
+		return &auth.TokenData{AccessToken: "tok"}, nil
+	}
+	stored := false
+	authStoreTokens = func(tokens *auth.TokenData) error { stored = true; return nil }
+
+	authFlagCallbackURL = "http://localhost:34106/callback?code=ABC&state=X"
+	if err := runAuthLogin(authLoginCmd, []string{}); err != nil {
+		t.Fatalf("runAuthLogin error: %v", err)
+	}
+	if exchanged != authFlagCallbackURL {
+		t.Errorf("exchanged = %q, want the pasted URL", exchanged)
+	}
+	if !stored {
+		t.Error("expected tokens to be stored")
+	}
+}
+
+func TestRunAuthLogin_Manual(t *testing.T) {
+	defer resetAuthMocks()
+	defer func() {
+		authBuildAuthorizeURL = auth.BuildAuthorizeURL
+		authExchangeCallbackURL = auth.ExchangeCallbackURL
+		authFlagManual = false
+		authStdinReader = os.Stdin
+	}()
+
+	authGetClientID = func() string { return "id" }
+	authGetClientSecret = func() string { return "secret" }
+	authBuildAuthorizeURL = func(cfg auth.OAuthConfig) (string, string, error) {
+		return "https://auth.example/authorize?state=ST", "ST", nil
+	}
+	gotState := ""
+	authExchangeCallbackURL = func(cfg auth.OAuthConfig, state, pasted string) (*auth.TokenData, error) {
+		gotState = state
+		return &auth.TokenData{AccessToken: "tok"}, nil
+	}
+	authStoreTokens = func(tokens *auth.TokenData) error { return nil }
+
+	authFlagManual = true
+	authStdinReader = strings.NewReader("http://localhost:34106/callback?code=C&state=ST\n")
+	if err := runAuthLogin(authLoginCmd, []string{}); err != nil {
+		t.Fatalf("runAuthLogin error: %v", err)
+	}
+	if gotState != "ST" {
+		t.Errorf("state passed to exchange = %q, want ST", gotState)
 	}
 }
 
@@ -654,5 +714,36 @@ func TestAuthSubcommands(t *testing.T) {
 		if !found {
 			t.Errorf("Expected auth subcommand %q not found", expected)
 		}
+	}
+}
+
+func TestRunAuthRefresh_APITokenErrors(t *testing.T) {
+	os.Setenv("BITBUCKET_API_TOKEN", "tok")
+	defer os.Unsetenv("BITBUCKET_API_TOKEN")
+	if err := runAuthRefresh(authRefreshCmd, nil); err == nil {
+		t.Error("expected error when using BITBUCKET_API_TOKEN")
+	}
+}
+
+func TestRunAuthRefresh_NotLoggedIn(t *testing.T) {
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	orig := authHasStoredTokens
+	defer func() { authHasStoredTokens = orig }()
+	authHasStoredTokens = func() bool { return false }
+	if err := runAuthRefresh(authRefreshCmd, nil); err == nil {
+		t.Error("expected error when not logged in")
+	}
+}
+
+func TestRunAuthRefresh_Success(t *testing.T) {
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	origHas, origRefresh := authHasStoredTokens, authRefreshTokens
+	defer func() { authHasStoredTokens = origHas; authRefreshTokens = origRefresh }()
+	authHasStoredTokens = func() bool { return true }
+	authRefreshTokens = func() (*auth.TokenData, error) {
+		return &auth.TokenData{AccessToken: "new", ExpiresAt: 1}, nil
+	}
+	if err := runAuthRefresh(authRefreshCmd, nil); err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 }

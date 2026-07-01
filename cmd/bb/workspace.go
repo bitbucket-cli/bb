@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 // Mockable dependencies for testing

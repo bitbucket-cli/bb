@@ -80,6 +80,11 @@ bb auth login
 # Pass credentials directly (note: visible in shell history — prefer env vars)
 bb auth login --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 
+# Over SSH / no browser: print the URL, paste back the redirect
+bb auth login --manual
+# Or exchange a callback URL you already have:
+bb auth login --callback-url "http://localhost:34106/callback?code=...&state=..."
+
 # Using environment variables (recommended)
 export BB_CLIENT_ID=your_client_id
 export BB_CLIENT_SECRET=your_client_secret
@@ -343,8 +348,22 @@ Available settings:
 | `BB_WORKSPACE` | Default workspace |
 | `BB_CLIENT_ID` | OAuth client ID |
 | `BB_CLIENT_SECRET` | OAuth client secret |
+| `BITBUCKET_API_TOKEN` | API token to use instead of OAuth (see below) |
+| `BITBUCKET_EMAIL` | Account email; pairs with `BITBUCKET_API_TOKEN` to use Basic auth |
 
 Environment variables take precedence over config file values.
+
+#### Token authentication
+
+As an alternative to `bb auth login`, set `BITBUCKET_API_TOKEN`:
+
+- **Atlassian API token** (the replacement for deprecated app passwords): also
+  set `BITBUCKET_EMAIL`. The two are sent as HTTP Basic auth (`email:token`).
+- **Repository/Workspace Access Token**: set only `BITBUCKET_API_TOKEN` (no
+  email). It is sent as a `Bearer` token.
+
+> Bitbucket app passwords are deprecated and being removed. Create an Atlassian
+> API token with the scopes you need and set `BITBUCKET_EMAIL` alongside it.
 
 ## Output Formats
 
@@ -484,6 +503,94 @@ Use `--json` flag for detailed error responses:
 
 ```bash
 bb pr create myworkspace/myrepo -t "Test" -s branch --json
+```
+
+## More Commands
+
+### Commits
+
+```bash
+bb commit list myworkspace/myrepo --branch main --limit 20
+bb commit view myworkspace/myrepo <hash>
+bb commit activity myworkspace/myrepo        # commits per author
+```
+
+### Source browsing
+
+```bash
+bb source list myworkspace/myrepo            # repo root (default branch)
+bb source list myworkspace/myrepo src --ref develop
+bb source view myworkspace/myrepo README.md
+```
+
+### Snippets
+
+```bash
+bb snippet list myworkspace --role owner
+bb snippet create myworkspace main.go --title "helper" --private
+cat notes.txt | bb snippet create myworkspace --filename notes.txt
+bb snippet view myworkspace <id>
+bb snippet update myworkspace <id> main.go
+bb snippet delete myworkspace <id>
+```
+
+### Downloads
+
+```bash
+bb download list myworkspace/myrepo
+bb download upload myworkspace/myrepo dist/app-linux dist/app-macos
+bb download get myworkspace/myrepo app-linux -o ./app
+bb download delete myworkspace/myrepo app-linux
+```
+
+### Deploy keys
+
+```bash
+bb deploy-key list myworkspace/myrepo
+bb deploy-key add myworkspace/myrepo --key-file ~/.ssh/id_ed25519.pub --label ci
+bb deploy-key delete myworkspace/myrepo <key-id>
+```
+
+### Pipeline variables, schedules, caches, analytics
+
+```bash
+bb variable list myworkspace/myrepo
+bb variable set myworkspace/myrepo KEY value --secured
+bb pipeline schedule list myworkspace/myrepo
+bb pipeline schedule create myworkspace/myrepo --branch main --cron "0 0 6 * * ? *"
+bb pipeline cache list myworkspace/myrepo
+bb pipeline analytics myworkspace/myrepo     # success rate, counts by result
+```
+
+### Pull request extras
+
+```bash
+bb pr checkout 42                            # auto-detects repo from git remote
+bb pr create myworkspace/myrepo -t "Title"   # source defaults to current branch
+bb pr comment myworkspace/myrepo 42 -b "nit" --path main.go --line 10
+bb pr request-changes myworkspace/myrepo 42 --comment "please fix the tests"
+bb pr threads myworkspace/myrepo 42          # comments as nested threads
+bb pr metrics myworkspace/myrepo             # avg/median time to merge
+bb pr bulk approve myworkspace/myrepo 1 2 3  # runs concurrently
+```
+
+### Repository settings & issue metadata
+
+```bash
+bb repo branching-model myworkspace/myrepo
+bb repo permissions myworkspace/myrepo --groups
+bb repo forks myworkspace/myrepo
+bb issue milestones myworkspace/myrepo
+bb issue bulk myworkspace/myrepo 12 15 19 --state resolved
+```
+
+### Output formats
+
+Every list command supports `--json` and `--csv`:
+
+```bash
+bb pr list myworkspace/myrepo --csv > prs.csv
+bb issue list myworkspace/myrepo --json | jq '.[].title'
 ```
 
 ## Contributing

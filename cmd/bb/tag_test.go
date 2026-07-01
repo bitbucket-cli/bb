@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ThomasRedstone/bb/internal/api"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 )
 
 func resetTagMocks() {

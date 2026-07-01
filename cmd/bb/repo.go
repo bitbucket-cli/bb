@@ -8,13 +8,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/config"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -64,40 +63,40 @@ If no workspace is specified, uses the default workspace from config or environm
 }
 
 var repoViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo>",
+	Use:   "view [workspace/repo]",
 	Short: "View repository details",
 	Long:  `Display detailed information about a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runRepoView,
 }
 
 var repoCloneCmd = &cobra.Command{
-	Use:   "clone <workspace/repo> [directory]",
+	Use:   "clone [workspace/repo] [directory]",
 	Short: "Clone a repository",
 	Long:  `Clone a Bitbucket repository to your local machine.`,
-	Args:  cobra.RangeArgs(1, 2),
+	Args:  cobra.RangeArgs(0, 2),
 	RunE:  runRepoClone,
 }
 
 var repoCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create a repository",
 	Long: `Create a new Bitbucket repository.
 
 Example:
   bb repo create myworkspace/myrepo --description "My new repo" --private`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runRepoCreate,
 }
 
 var repoUpdateCmd = &cobra.Command{
-	Use:   "update <workspace/repo>",
+	Use:   "update [workspace/repo]",
 	Short: "Update repository settings",
 	Long: `Update repository settings.
 
 Example:
   bb repo update myworkspace/myrepo --description "New description" --private`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runRepoUpdate,
 }
 
@@ -108,26 +107,26 @@ var repoReviewersCmd = &cobra.Command{
 }
 
 var repoReviewersListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List default reviewers",
 	Long:  `List all default reviewers configured for a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runRepoReviewersList,
 }
 
 var repoReviewersAddCmd = &cobra.Command{
-	Use:   "add <workspace/repo> <username>",
+	Use:   "add [workspace/repo] <username>",
 	Short: "Add a default reviewer",
 	Long:  `Add a user as a default reviewer for a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runRepoReviewersAdd,
 }
 
 var repoReviewersRemoveCmd = &cobra.Command{
-	Use:   "remove <workspace/repo> <username>",
+	Use:   "remove [workspace/repo] <username>",
 	Short: "Remove a default reviewer",
 	Long:  `Remove a user from the default reviewers of a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runRepoReviewersRemove,
 }
 
@@ -351,7 +350,7 @@ func runRepoView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -448,7 +447,7 @@ func runRepoClone(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 0)
 	if err != nil {
 		return err
 	}
@@ -491,15 +490,13 @@ func runRepoClone(cmd *cobra.Command, args []string) error {
 
 	// Determine target directory
 	targetDir := ""
-	if len(args) > 1 {
-		targetDir = args[1]
+	if len(rest) > 0 {
+		targetDir = rest[0]
 	} else {
-		// Use repo slug as directory name
-		parts := strings.Split(args[0], "/")
-		targetDir = parts[len(parts)-1]
+		targetDir = repoCtx.RepoSlug
 	}
 
-	output.Info("Cloning %s into %s...", args[0], targetDir)
+	output.Info("Cloning %s/%s into %s...", repoCtx.Workspace, repoCtx.RepoSlug, targetDir)
 
 	if err := runGitClone(cloneURL, targetDir); err != nil {
 		return fmt.Errorf("git clone failed: %w", err)
@@ -517,7 +514,7 @@ func runRepoCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -600,7 +597,7 @@ func runRepoCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	fullName := args[0]
+	fullName := repoCtx.Workspace + "/" + repoCtx.RepoSlug
 	if createdRepo.FullName != nil && *createdRepo.FullName != "" {
 		fullName = *createdRepo.FullName
 	}
@@ -624,7 +621,7 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -685,7 +682,7 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
 	}
 
-	output.Success("Updated repository %s", args[0])
+	output.Success("Updated repository %s/%s", repoCtx.Workspace, repoCtx.RepoSlug)
 	return nil
 }
 
@@ -697,7 +694,7 @@ func runRepoReviewersList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -763,12 +760,12 @@ func runRepoReviewersAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	username := args[1]
+	username := rest[0]
 
 	resp, err := client.PutRepositoriesWorkspaceRepoSlugDefaultReviewersTargetUsername(
 		ctx,
@@ -799,12 +796,12 @@ func runRepoReviewersRemove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	username := args[1]
+	username := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugDefaultReviewersTargetUsername(
 		ctx,

@@ -38,18 +38,63 @@ type OAuthConfig struct {
 	Scopes       []string
 }
 
-// DefaultScopes returns the default OAuth scopes for the CLI
-func DefaultScopes() []string {
-	return []string{
-		"repository",
-		"repository:write",
-		"repository:admin",
-		"pullrequest",
-		"pullrequest:write",
-		"pipeline",
-		"pipeline:write",
+// scopePresets map a privilege LEVEL to the OAuth scopes requested at login.
+//
+// Bitbucket validates the requested scopes against the OAuth consumer — login
+// fails if you ask for a scope the consumer wasn't granted — but it does NOT
+// narrow the issued token: the access token always carries the consumer's full
+// configured scopes, regardless of what we request. So a preset is a fail-fast
+// assertion of the capability level you expect your consumer to provide, not a
+// way to restrict the token. The real least-privilege lever is the consumer's
+// own permissions.
+var scopePresets = map[string][]string{
+	"read": {
+		"account", "repository", "pullrequest", "pipeline",
+	},
+	"write": {
 		"account",
+		"repository", "repository:write",
+		"pullrequest", "pullrequest:write",
+		"pipeline", "pipeline:write",
+	},
+	"admin": {
+		"account",
+		"repository", "repository:write", "repository:admin",
+		"pullrequest", "pullrequest:write",
+		"pipeline", "pipeline:write",
+	},
+}
+
+// DefaultScopeLevel is the preset requested when none is specified.
+const DefaultScopeLevel = "write"
+
+// ScopePresetNames returns the preset names in increasing-privilege order.
+func ScopePresetNames() []string {
+	return []string{"read", "write", "admin"}
+}
+
+// DefaultScopes returns the OAuth scopes for the default level.
+func DefaultScopes() []string {
+	return append([]string(nil), scopePresets[DefaultScopeLevel]...)
+}
+
+// ResolveScopes turns a --scopes spec into a concrete scope list. An empty spec
+// yields the default level. A known preset name (read/write/admin) expands to
+// its set; any other value is treated as an explicit comma/space-separated
+// scope list, so power users can request an exact set.
+func ResolveScopes(spec string) ([]string, error) {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		spec = DefaultScopeLevel
 	}
+	if preset, ok := scopePresets[spec]; ok {
+		return append([]string(nil), preset...), nil
+	}
+	fields := strings.FieldsFunc(spec, func(r rune) bool { return r == ',' || r == ' ' })
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("no scopes specified in %q", spec)
+	}
+	return fields, nil
 }
 
 // Login performs the OAuth 2.0 authorization code flow
@@ -105,6 +150,51 @@ func Login(cfg OAuthConfig) (*TokenData, error) {
 		return nil, fmt.Errorf("failed to exchange code for tokens: %w", err)
 	}
 
+	return tokens, nil
+}
+
+// BuildAuthorizeURL returns the Bitbucket authorize URL plus the random state to
+// match against the callback. Used by the manual (no-server) login flow.
+func BuildAuthorizeURL(cfg OAuthConfig) (authURL, state string, err error) {
+	if cfg.ClientID == "" || cfg.ClientSecret == "" {
+		return "", "", fmt.Errorf("OAuth client credentials not configured")
+	}
+	if len(cfg.Scopes) == 0 {
+		cfg.Scopes = DefaultScopes()
+	}
+	state, err = generateState()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate state: %w", err)
+	}
+	return buildAuthURL(cfg.ClientID, state, cfg.Scopes), state, nil
+}
+
+// ExchangeCallbackURL completes the OAuth flow from a pasted callback URL (the
+// full `http://localhost:34106/callback?...` redirect) or a bare authorization
+// code. When the input is a full URL and expectedState is non-empty, the state
+// is validated. This avoids needing the local callback server (e.g. over SSH).
+func ExchangeCallbackURL(cfg OAuthConfig, expectedState, pasted string) (*TokenData, error) {
+	pasted = strings.TrimSpace(pasted)
+	if pasted == "" {
+		return nil, fmt.Errorf("no callback URL or code provided")
+	}
+
+	code := pasted
+	if u, perr := url.Parse(pasted); perr == nil && u.Query().Get("code") != "" {
+		q := u.Query()
+		if errMsg := q.Get("error"); errMsg != "" {
+			return nil, fmt.Errorf("authorization failed: %s - %s", errMsg, q.Get("error_description"))
+		}
+		if expectedState != "" && q.Get("state") != "" && q.Get("state") != expectedState {
+			return nil, fmt.Errorf("state mismatch — the pasted URL is from a different login attempt")
+		}
+		code = q.Get("code")
+	}
+
+	tokens, err := exchangeCode(cfg.ClientID, cfg.ClientSecret, code)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange code for tokens: %w", err)
+	}
 	return tokens, nil
 }
 

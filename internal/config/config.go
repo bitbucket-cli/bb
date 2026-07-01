@@ -19,6 +19,7 @@ type Config struct {
 	ClientSecret string `mapstructure:"client_secret"`
 	Workspace    string `mapstructure:"workspace"`
 	OutputFormat string `mapstructure:"output_format"`
+	Scopes       string `mapstructure:"scopes"`
 }
 
 var cfg *Config
@@ -111,6 +112,22 @@ func GetWorkspace() string {
 	return Get().Workspace
 }
 
+// GetScopes returns the configured OAuth scope level or explicit list
+// (env BB_SCOPES takes precedence over the config file). Empty means "use the
+// default level".
+func GetScopes() string {
+	if s := os.Getenv("BB_SCOPES"); s != "" {
+		return s
+	}
+	return Get().Scopes
+}
+
+// SetScopes saves the OAuth scope level/list to the config file.
+func SetScopes(scopes string) error {
+	viper.Set("scopes", scopes)
+	return writeConfig()
+}
+
 // SetClientCredentials saves OAuth client credentials to config file
 func SetClientCredentials(clientID, clientSecret string) error {
 	viper.Set("client_id", clientID)
@@ -131,7 +148,15 @@ func writeConfig() error {
 	}
 
 	configPath := filepath.Join(dir, "config.yaml")
-	return viper.WriteConfigAs(configPath)
+	if err := viper.WriteConfigAs(configPath); err != nil {
+		return err
+	}
+	// The file can hold the OAuth client secret — keep it owner-only rather than
+	// the 0644 viper writes by default.
+	if err := os.Chmod(configPath, 0600); err != nil {
+		return fmt.Errorf("could not secure config file permissions: %w", err)
+	}
+	return nil
 }
 
 // HasClientCredentials checks if OAuth credentials are configured

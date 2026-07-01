@@ -1,4 +1,4 @@
-package api
+package bitbucket
 
 import (
 	"context"
@@ -11,13 +11,98 @@ import (
 	"testing"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/auth"
+	"github.com/ThomasRedstone/bb/pkg/auth"
 )
 
 // resetMocks restores default function implementations
 func resetMocks() {
 	refreshAccessToken = auth.RefreshAccessToken
 	newBitbucketClient = bitbucket.NewClient
+	accessTokenExpiredOrUnknown = auth.AccessTokenExpiredOrUnknown
+}
+
+func TestAuthClientDo_404RefreshRetryWhenExpired(t *testing.T) {
+	defer resetMocks()
+
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusNotFound) // expired session masked as 404
+			return
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer fresh-token" {
+			t.Errorf("retry should carry refreshed token, got %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, "ok")
+	}))
+	defer server.Close()
+
+	accessTokenExpiredOrUnknown = func() bool { return true }
+	refreshAccessToken = func() (*auth.TokenData, error) {
+		return &auth.TokenData{AccessToken: "fresh-token"}, nil
+	}
+
+	client := &authClient{
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "stale-token"},
+		underlying: http.DefaultClient,
+		canRefresh: true,
+	}
+	resp, err := client.Do(mustReq(t, server.URL))
+	if err != nil {
+		t.Fatalf("Do() error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200 after refresh+retry", resp.StatusCode)
+	}
+	if calls != 2 {
+		t.Errorf("expected one retry (2 calls), got %d", calls)
+	}
+}
+
+func TestAuthClientDo_404NotRetriedWhenTokenValid(t *testing.T) {
+	defer resetMocks()
+
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	accessTokenExpiredOrUnknown = func() bool { return false } // healthy token
+	refreshAccessToken = func() (*auth.TokenData, error) {
+		t.Fatal("refresh must not be attempted on a 404 with a valid token")
+		return nil, nil
+	}
+
+	client := &authClient{
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "good-token"},
+		underlying: http.DefaultClient,
+		canRefresh: true,
+	}
+	resp, err := client.Do(mustReq(t, server.URL))
+	if err != nil {
+		t.Fatalf("Do() error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (genuine not-found)", resp.StatusCode)
+	}
+	if calls != 1 {
+		t.Errorf("expected no retry (1 call), got %d", calls)
+	}
+}
+
+func mustReq(t *testing.T, url string) *http.Request {
+	t.Helper()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	return req
 }
 
 func TestParseRepoContext(t *testing.T) {
@@ -120,6 +205,35 @@ func TestNewUnauthenticatedClient(t *testing.T) {
 	}
 }
 
+func TestCheckResponse_404AuthHint(t *testing.T) {
+	notFound := &http.Response{StatusCode: http.StatusNotFound, Status: "404 Not Found"}
+
+	t.Run("OAuth mode hints re-login", func(t *testing.T) {
+		os.Unsetenv("BITBUCKET_API_TOKEN")
+		err := CheckResponse(notFound)
+		if err == nil || !strings.Contains(err.Error(), "bb auth login") {
+			t.Errorf("expected re-login hint on 404 in OAuth mode, got: %v", err)
+		}
+	})
+
+	t.Run("API-token mode does not hint", func(t *testing.T) {
+		os.Setenv("BITBUCKET_API_TOKEN", "x")
+		defer os.Unsetenv("BITBUCKET_API_TOKEN")
+		err := CheckResponse(notFound)
+		if err == nil || strings.Contains(err.Error(), "bb auth login") {
+			t.Errorf("expected no hint with API token, got: %v", err)
+		}
+	})
+
+	t.Run("non-404 does not hint", func(t *testing.T) {
+		os.Unsetenv("BITBUCKET_API_TOKEN")
+		err := CheckResponse(&http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error"})
+		if err == nil || strings.Contains(err.Error(), "bb auth login") {
+			t.Errorf("expected no hint on 500, got: %v", err)
+		}
+	})
+}
+
 func TestAuthClientDo_WithToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -132,7 +246,39 @@ func TestAuthClientDo_WithToken(t *testing.T) {
 	defer server.Close()
 
 	client := &authClient{
-		token:      "test-token",
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "test-token"},
+		underlying: http.DefaultClient,
+		canRefresh: false,
+	}
+
+	req, _ := http.NewRequest("GET", server.URL, nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Do() status = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestAuthClientDo_WithBasicAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			t.Errorf("Expected Basic auth, got Authorization %q", r.Header.Get("Authorization"))
+		}
+		if user != "me@example.com" || pass != "api-token" {
+			t.Errorf("BasicAuth = %q:%q, want me@example.com:api-token", user, pass)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	client := &authClient{
+		cred:       auth.Credential{Scheme: auth.SchemeBasic, Username: "me@example.com", Token: "api-token"},
 		underlying: http.DefaultClient,
 		canRefresh: false,
 	}
@@ -160,7 +306,7 @@ func TestAuthClientDo_WithoutToken(t *testing.T) {
 	defer server.Close()
 
 	client := &authClient{
-		token:      "",
+		cred:       auth.Credential{},
 		underlying: http.DefaultClient,
 		canRefresh: false,
 	}
@@ -179,7 +325,7 @@ func TestAuthClientDo_WithoutToken(t *testing.T) {
 
 func TestAuthClientDo_NetworkError(t *testing.T) {
 	client := &authClient{
-		token:      "test-token",
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "test-token"},
 		underlying: http.DefaultClient,
 		canRefresh: false,
 	}
@@ -198,7 +344,7 @@ func TestAuthClientDo_401NoRefresh(t *testing.T) {
 	defer server.Close()
 
 	client := &authClient{
-		token:      "test-token",
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "test-token"},
 		underlying: http.DefaultClient,
 		canRefresh: false, // Cannot refresh
 	}
@@ -269,7 +415,7 @@ func TestAuthClientDo_401WithRefreshFailure(t *testing.T) {
 	}
 
 	client := &authClient{
-		token:      "expired-token",
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "expired-token"},
 		underlying: http.DefaultClient,
 		canRefresh: true,
 	}
@@ -336,7 +482,7 @@ func TestAuthClientDo_401RetrySuccess(t *testing.T) {
 	}
 
 	client := &authClient{
-		token:      "expired-token",
+		cred:       auth.Credential{Scheme: auth.SchemeBearer, Token: "expired-token"},
 		underlying: http.DefaultClient,
 		canRefresh: true,
 	}
@@ -353,8 +499,8 @@ func TestAuthClientDo_401RetrySuccess(t *testing.T) {
 	}
 
 	// Verify token was updated
-	if client.token != "new-token" {
-		t.Errorf("client.token = %q, want %q", client.token, "new-token")
+	if client.cred.Token != "new-token" {
+		t.Errorf("client.cred.Token = %q, want %q", client.cred.Token, "new-token")
 	}
 }
 

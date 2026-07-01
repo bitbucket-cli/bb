@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -33,37 +33,37 @@ var webhookCmd = &cobra.Command{
 }
 
 var webhookListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List webhooks",
 	Long:  `List all webhooks configured for a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runWebhookList,
 }
 
 var webhookCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create a webhook",
 	Long: `Create a new webhook for a repository.
 
 Example:
   bb webhook create myworkspace/myrepo --url https://example.com/webhook --events repo:push,pullrequest:created`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runWebhookCreate,
 }
 
 var webhookViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <webhook-id>",
+	Use:   "view [workspace/repo] <webhook-id>",
 	Short: "View webhook details",
 	Long:  `Display detailed information about a specific webhook.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runWebhookView,
 }
 
 var webhookDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <webhook-id>",
+	Use:   "delete [workspace/repo] <webhook-id>",
 	Short: "Delete a webhook",
 	Long:  `Delete a webhook from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runWebhookDelete,
 }
 
@@ -89,7 +89,7 @@ func runWebhookList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func runWebhookCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -249,12 +249,12 @@ func runWebhookView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	webhookID := args[1]
+	webhookID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugHooksUid(
 		ctx,
@@ -309,12 +309,12 @@ func runWebhookDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	webhookID := args[1]
+	webhookID := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugHooksUid(
 		ctx,

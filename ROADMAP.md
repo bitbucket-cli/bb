@@ -5,18 +5,23 @@ This document outlines planned features and improvements for the Bitbucket CLI (
 ## Current Status
 
 The CLI currently supports:
-- **Authentication**: OAuth login/logout with secure token storage
+- **Authentication**: OAuth login/logout (selectable scope levels) with secure token storage; API-token fallback
 - **Repositories**: List, view, clone, create, update, fork, delete
-- **Pull Requests**: List, view, create, merge, approve, comment, diff
+- **Pull Requests**: List, view, create (source defaults to current branch), merge, approve, request-changes, decline, comment (incl. inline), diff, checkout
 - **Branches**: List, view, create, delete, restrictions
-- **Pipelines**: List, view, trigger, stop, steps, logs
+- **Commits**: List (by branch/ref), view
+- **Pipelines**: List, view, trigger, stop, steps, logs; schedules (list/view/delete); caches (list/delete); variables (list/set/delete)
 - **Issues**: List, view, create, update, delete, comments
 - **Tags**: List, view, create, delete
 - **Webhooks**: List, view, create, delete
+- **Deploy keys**: List, add, view, delete
+- **Snippets**: List, view, create, update, delete
+- **Downloads**: List, upload, get, delete
 - **Deployments**: List environments, create, delete
 - **Workspaces**: List, view, members, projects
 - **Configuration**: Manage CLI settings
 - **Shell Completions**: Bash, Zsh, Fish, PowerShell
+- **Git integration**: Auto-detect workspace/repo from the origin remote
 
 ## Open-Source Release Blockers
 
@@ -57,93 +62,95 @@ These must be resolved before a public release. See `review.md` for full details
 ### High Priority
 
 #### Git Integration
-- [ ] Auto-detect workspace/repo from current git directory
-- [ ] `bb pr checkout <pr-number>` - checkout PR branch locally
-- [ ] `bb pr create` from current branch without specifying source
+- [x] Auto-detect workspace/repo from current git directory — `internal/git.DetectRepo` (origin remote), used by `bb pr checkout`
+- [x] `bb pr checkout <pr-number>` - checkout PR branch locally (repo auto-detected)
+- [x] `bb pr create` from current branch without specifying source — `--source` defaults to the current git branch
 
 #### Enhanced Interactive Mode
-- [ ] Add `-i` flag to more commands (branch, issue, etc.)
-- [ ] Interactive PR creation wizard
-- [ ] Interactive branch selection for operations
+- [x] Add `-i` flag to more commands — `bb branch delete -i` (interactive branch picker)
+- [x] Interactive PR creation wizard — `bb pr create -i` prompts for the title
+- [x] Interactive branch selection for operations — `bb branch delete` prompts when the name is omitted
 
 #### Pipeline Improvements
-- [ ] Stream pipeline logs in real-time
-- [ ] Pipeline variable management
-- [ ] Schedule management
-- [ ] Caches and artifacts management
+- [~] Stream pipeline logs in real-time — not feasible: the API returns the full log, no streaming/websocket endpoint
+- [x] Pipeline variable management — `bb variable list/set/delete` (repo pipeline variables)
+- [x] Schedule management — `bb pipeline schedule list/create/view/delete` (create body is best-effort — verify against the live API)
+- [x] Caches management — `bb pipeline cache list/delete` (artifacts download still pending)
 
 ### Medium Priority
 
 #### Code Review Features
-- [ ] Inline comments support for PR reviews
-- [ ] PR review threads navigation
-- [ ] Request changes / approve with comments
-- [ ] PR templates support
+- [x] Inline comments support for PR reviews — `bb pr comment --path <file> --line <n>`
+- [x] PR review threads navigation — `bb pr threads` (comments nested by reply, inline anchored)
+- [x] Request changes with comment — `bb pr request-changes [--remove] [--comment]`
+- [x] PR templates support — `bb pr create` defaults the description from `.bitbucket/`, root, `.github/`, or `docs/` `pull_request_template.md`
 
 #### Repository Management
-- [ ] Repository settings management
-- [ ] Access keys (SSH keys) management
-- [ ] Repository variables for pipelines
-- [ ] Branch merge strategies configuration
+- [~] Repository settings management — read views added: `bb repo branching-model`, `bb repo permissions [--groups]`, `bb repo forks` (write/update still pending)
+- [x] Access keys (SSH keys) management — `bb deploy-key list/add/view/delete`
+- [x] Repository variables for pipelines — `bb variable list/set/delete`
+- [~] Branch merge strategies configuration — not feasible: no merge-strategy/pullrequest-settings endpoint in the generated API spec
 
 #### Snippets Support
-- [ ] List snippets
-- [ ] Create snippets from files or stdin
-- [ ] View snippet content
-- [ ] Update and delete snippets
+- [x] List snippets — `bb snippet list [workspace] [--role]`, paginated
+- [x] Create snippets from files or stdin — `bb snippet create` (multipart, `--title`/`--private`/`--filename`)
+- [x] View snippet content — `bb snippet view <workspace> <id>`
+- [x] Delete snippets — `bb snippet delete <workspace> <id>`
+- [x] Update snippets — `bb snippet update <workspace> <id> [files...]` (multipart PUT via Client.RequestRaw)
 
 #### Downloads
-- [ ] List repository downloads
-- [ ] Upload files to downloads
-- [ ] Delete downloads
+- [x] List repository downloads — `bb download list <workspace/repo>`, paginated
+- [x] Upload files to downloads — `bb download upload <workspace/repo> <files...>`
+- [x] Delete downloads — `bb download delete <workspace/repo> <filename>`
+- [x] Fetch a download — `bb download get <workspace/repo> <filename> [-o path]`
 
 ### Low Priority
 
 #### Reports and Analytics
-- [ ] Pipeline analytics and statistics
-- [ ] Commit activity reports
-- [ ] PR metrics (time to merge, etc.)
+- [x] Pipeline analytics and statistics — `bb pipeline analytics` (success rate, counts by result)
+- [x] Commit activity reports — `bb commit activity` (commits per author)
+- [x] PR metrics — `bb pr metrics` (count, avg/median time to merge)
 
 #### Bulk Operations
-- [ ] Bulk PR operations (approve multiple, merge multiple)
-- [ ] Bulk issue updates
-- [ ] Export operations (PRs, issues to CSV/JSON)
+- [x] Bulk PR operations — `bb pr bulk approve/decline/merge <repo> <id...>`
+- [x] Bulk issue updates — `bb issue bulk <repo> <id...> --state`
+- [x] Export operations (PRs, issues to CSV/JSON) — global `--csv` (and existing `--json`) on every list command
 
 #### Notifications
-- [ ] List notifications
-- [ ] Mark notifications as read
-- [ ] Notification preferences
+- [~] List notifications — not feasible: Bitbucket Cloud has no notifications REST API
+- [~] Mark notifications as read — not feasible: no Bitbucket Cloud notifications API
+- [~] Notification preferences — not feasible: no Bitbucket Cloud notifications API
 
 ## Technical Improvements
 
 ### Testing
-- [ ] Increase test coverage to 90%+
-- [ ] Add integration tests with mock API server
-- [ ] Add end-to-end tests
+- [~] Increase test coverage to 90%+ — ongoing: config/output/auth 90%+, cmd/bb ~80%; every command has httptest coverage
+- [x] Add integration tests with mock API server — full cobra Execute path against httptest (integration_test.go), plus per-command httptest tests
+- [~] End-to-end tests — cobra-Execute integration tests added (integration_test.go); live e2e vs the real API needs credentials, out of CI scope
 
 ### Documentation
-- [ ] Man pages generation
-- [ ] Comprehensive README with examples
-- [ ] Contributing guide
-- [ ] API documentation
+- [x] Man pages generation — hidden `bb man <dir>` (cobra/doc)
+- [x] Comprehensive README with examples — per-resource examples incl. all new commands
+- [x] Contributing guide — CONTRIBUTING.md
+- [x] API documentation — `bb man <dir> --format markdown` (cobra/doc) generates per-command reference
 
 ### Build and Distribution
 - [x] GitHub Actions CI/CD pipeline (ci.yml + release.yml + .goreleaser.yaml)
 - [x] Cross-platform binaries (Linux, macOS, Windows) — goreleaser builds amd64+arm64
 - [x] Homebrew formula — goreleaser publishes to ThomasRedstone/homebrew-tap
-- [ ] APT/RPM packages
-- [ ] Scoop manifest for Windows
+- [x] APT/RPM packages — goreleaser nfpms (deb/rpm)
+- [x] Scoop manifest for Windows — goreleaser scoops (needs a scoop-bucket repo + token, like the Homebrew tap)
 
 ### Performance
-- [ ] Response caching for frequently accessed data
-- [ ] Concurrent API requests where applicable
-- [ ] Lazy loading for large result sets
+- [~] Response caching — not applicable: bb is a stateless single-shot CLI; superseded by on-demand pagination + --limit
+- [x] Concurrent API requests where applicable — bulk PR/issue ops run with bounded concurrency (`runConcurrent`)
+- [x] Lazy loading for large result sets — list commands paginate on demand and stop at `--limit`
 
 ### Code Quality
-- [ ] Golangci-lint integration
-- [ ] Pre-commit hooks
-- [ ] Semantic versioning
-- [ ] Changelog automation
+- [x] Golangci-lint integration — `.golangci.yml` (v2) + CI lint job
+- [x] Pre-commit hooks — .pre-commit-config.yaml
+- [x] Semantic versioning — goreleaser cuts releases from semver git tags (`-X main.version`)
+- [x] Changelog automation — goreleaser changelog
 
 ## Contributing
 

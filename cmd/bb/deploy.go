@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -30,10 +30,10 @@ var deployCmd = &cobra.Command{
 }
 
 var deployListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List deployments",
 	Long:  `List all deployments for a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runDeployList,
 }
 
@@ -45,30 +45,30 @@ var deployEnvCmd = &cobra.Command{
 }
 
 var deployEnvListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List environments",
 	Long:  `List all deployment environments for a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runDeployEnvList,
 }
 
 var deployEnvCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo> <env-name>",
+	Use:   "create [workspace/repo] <env-name>",
 	Short: "Create an environment",
 	Long: `Create a new deployment environment.
 
 Example:
   bb deploy env create myworkspace/myrepo production --type Production
   bb deploy env create myworkspace/myrepo staging --type Staging`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runDeployEnvCreate,
 }
 
 var deployEnvDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <env-uuid>",
+	Use:   "delete [workspace/repo] <env-uuid>",
 	Short: "Delete an environment",
 	Long:  `Delete a deployment environment.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runDeployEnvDelete,
 }
 
@@ -92,7 +92,7 @@ func runDeployList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func runDeployEnvList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -257,12 +257,12 @@ func runDeployEnvCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	envName := args[1]
+	envName := rest[0]
 
 	envReq := map[string]interface{}{
 		"name": envName,
@@ -321,12 +321,12 @@ func runDeployEnvDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	envUUID := args[1]
+	envUUID := rest[0]
 
 	resp, err := client.DeleteEnvironmentForRepository(
 		ctx,

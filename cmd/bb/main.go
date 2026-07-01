@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/internal/config"
 	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/spf13/cobra"
 )
 
 var (
 	version    = "dev"
 	jsonOutput bool
+	csvOutput  bool
 	osExit     = os.Exit // Mockable for testing
 )
 
@@ -34,6 +35,8 @@ To get started, run:
 		// Set output format
 		if jsonOutput {
 			output.SetFormat("json")
+		} else if csvOutput {
+			output.SetFormat("csv")
 		}
 
 		return nil
@@ -42,6 +45,8 @@ To get started, run:
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
+	rootCmd.PersistentFlags().BoolVar(&csvOutput, "csv", false, "Output in CSV format")
+	rootCmd.PersistentFlags().StringVarP(&repoOverride, "repo", "R", "", "Target repository as workspace/repo (default: detected from the current git remote)")
 
 	// Add subcommands
 	rootCmd.AddCommand(authCmd)
@@ -50,6 +55,12 @@ func init() {
 	rootCmd.AddCommand(branchCmd)
 	rootCmd.AddCommand(pipelineCmd)
 	rootCmd.AddCommand(webhookCmd)
+	rootCmd.AddCommand(snippetCmd)
+	rootCmd.AddCommand(downloadCmd)
+	rootCmd.AddCommand(deployKeyCmd)
+	rootCmd.AddCommand(variableCmd)
+	rootCmd.AddCommand(commitCmd)
+	rootCmd.AddCommand(sourceCmd)
 	rootCmd.AddCommand(issueCmd)
 	rootCmd.AddCommand(tagCmd)
 	rootCmd.AddCommand(deployCmd)

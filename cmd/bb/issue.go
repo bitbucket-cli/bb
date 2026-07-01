@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -35,64 +35,64 @@ var issueCmd = &cobra.Command{
 }
 
 var issueListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List issues",
 	Long:  `List all issues in a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runIssueList,
 }
 
 var issueCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo>",
+	Use:   "create [workspace/repo]",
 	Short: "Create an issue",
 	Long: `Create a new issue in a repository.
 
 Example:
   bb issue create myworkspace/myrepo --title "Bug report" --body "Description" --kind bug --priority major`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runIssueCreate,
 }
 
 var issueViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <issue-id>",
+	Use:   "view [workspace/repo] <issue-id>",
 	Short: "View issue details",
 	Long:  `Display detailed information about a specific issue.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueView,
 }
 
 var issueUpdateCmd = &cobra.Command{
-	Use:   "update <workspace/repo> <issue-id>",
+	Use:   "update [workspace/repo] <issue-id>",
 	Short: "Update an issue",
 	Long: `Update an existing issue.
 
 Example:
   bb issue update myworkspace/myrepo 123 --state resolved --priority minor`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runIssueUpdate,
 }
 
 var issueDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <issue-id>",
+	Use:   "delete [workspace/repo] <issue-id>",
 	Short: "Delete an issue",
 	Long:  `Delete an issue from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueDelete,
 }
 
 var issueCommentCmd = &cobra.Command{
-	Use:   "comment <workspace/repo> <issue-id>",
+	Use:   "comment [workspace/repo] <issue-id>",
 	Short: "Add a comment to an issue",
 	Long:  `Add a new comment to an issue.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueComment,
 }
 
 var issueCommentsCmd = &cobra.Command{
-	Use:   "comments <workspace/repo> <issue-id>",
+	Use:   "comments [workspace/repo] <issue-id>",
 	Short: "List comments on an issue",
 	Long:  `Display all comments on an issue.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runIssueComments,
 }
 
@@ -134,7 +134,7 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -155,12 +155,12 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 
 	var result struct {
 		Values []struct {
-			ID        int    `json:"id"`
-			Title     string `json:"title"`
-			State     string `json:"state"`
-			Priority  string `json:"priority"`
-			Kind      string `json:"kind"`
-			Reporter  *struct {
+			ID       int    `json:"id"`
+			Title    string `json:"title"`
+			State    string `json:"state"`
+			Priority string `json:"priority"`
+			Kind     string `json:"kind"`
+			Reporter *struct {
 				DisplayName string `json:"display_name"`
 			} `json:"reporter"`
 			Assignee *struct {
@@ -219,7 +219,7 @@ func runIssueCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -292,12 +292,12 @@ func runIssueView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugIssuesIssueId(
 		ctx,
@@ -315,12 +315,12 @@ func runIssueView(cmd *cobra.Command, args []string) error {
 	}
 
 	var issue struct {
-		ID        int    `json:"id"`
-		Title     string `json:"title"`
-		State     string `json:"state"`
-		Priority  string `json:"priority"`
-		Kind      string `json:"kind"`
-		Content   *struct {
+		ID       int    `json:"id"`
+		Title    string `json:"title"`
+		State    string `json:"state"`
+		Priority string `json:"priority"`
+		Kind     string `json:"kind"`
+		Content  *struct {
 			Raw string `json:"raw"`
 		} `json:"content"`
 		Reporter *struct {
@@ -370,12 +370,12 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	issueRequest := make(map[string]interface{})
 
@@ -448,12 +448,12 @@ func runIssueDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugIssuesIssueId(
 		ctx,
@@ -484,12 +484,12 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	commentRequest := map[string]interface{}{
 		"content": map[string]interface{}{
@@ -541,12 +541,12 @@ func runIssueComments(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	issueID := args[1]
+	issueID := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugIssuesIssueIdComments(
 		ctx,

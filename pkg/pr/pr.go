@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 )
 
 // State constants matching the Bitbucket API.

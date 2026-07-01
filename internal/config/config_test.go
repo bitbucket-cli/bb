@@ -50,6 +50,70 @@ func TestInit(t *testing.T) {
 	}
 }
 
+func TestWriteConfig_SecretFilePermissions(t *testing.T) {
+	resetState()
+
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	if err := Init(); err != nil {
+		t.Fatalf("Init() error: %v", err)
+	}
+
+	// Writing client credentials must leave the config file owner-only (0600),
+	// since it holds the OAuth client secret.
+	if err := SetClientCredentials("id", "secret"); err != nil {
+		t.Fatalf("SetClientCredentials error: %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, ".config", "bb", "config.yaml")
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("stat config: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("config.yaml perms = %o, want 0600", perm)
+	}
+}
+
+func TestSetGetScopes(t *testing.T) {
+	resetState()
+
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+	os.Unsetenv("BB_SCOPES")
+
+	if err := Init(); err != nil {
+		t.Fatalf("Init() error: %v", err)
+	}
+
+	if err := SetScopes("admin"); err != nil {
+		t.Fatalf("SetScopes error: %v", err)
+	}
+
+	// Persisted to disk: a fresh load (next process) picks it up.
+	if err := Init(); err != nil {
+		t.Fatalf("reload Init() error: %v", err)
+	}
+	if got := Get().Scopes; got != "admin" {
+		t.Errorf("after reload Get().Scopes = %q, want %q", got, "admin")
+	}
+	if got := GetScopes(); got != "admin" {
+		t.Errorf("GetScopes() = %q, want %q", got, "admin")
+	}
+
+	// Env var takes precedence over the persisted value.
+	os.Setenv("BB_SCOPES", "read")
+	defer os.Unsetenv("BB_SCOPES")
+	if got := GetScopes(); got != "read" {
+		t.Errorf("GetScopes() = %q, want %q (env override)", got, "read")
+	}
+}
+
 func TestGet_NilConfig(t *testing.T) {
 	resetState()
 

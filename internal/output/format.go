@@ -1,6 +1,7 @@
 package output
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ type Format string
 const (
 	FormatTable Format = "table"
 	FormatJSON  Format = "json"
+	FormatCSV   Format = "csv"
 )
 
 // CurrentFormat holds the global output format setting
@@ -27,6 +29,8 @@ func SetFormat(f string) {
 	switch f {
 	case "json":
 		CurrentFormat = FormatJSON
+	case "csv":
+		CurrentFormat = FormatCSV
 	default:
 		CurrentFormat = FormatTable
 	}
@@ -53,8 +57,21 @@ func JSON(data interface{}) error {
 
 // Print outputs data in the current format
 func Print(headers []string, rows [][]string, jsonData interface{}) error {
-	if CurrentFormat == FormatJSON {
+	switch CurrentFormat {
+	case FormatJSON:
 		return JSON(jsonData)
+	case FormatCSV:
+		w := csv.NewWriter(os.Stdout)
+		if len(headers) > 0 {
+			if err := w.Write(headers); err != nil {
+				return err
+			}
+		}
+		if err := w.WriteAll(rows); err != nil {
+			return err
+		}
+		w.Flush()
+		return w.Error()
 	}
 	table := Table(headers)
 	table.AppendBulk(rows)

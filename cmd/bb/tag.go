@@ -8,10 +8,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/api"
 	"github.com/ThomasRedstone/bb/internal/output"
+	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -32,38 +32,38 @@ var tagCmd = &cobra.Command{
 }
 
 var tagListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List tags",
 	Long:  `List all tags in a repository.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runTagList,
 }
 
 var tagCreateCmd = &cobra.Command{
-	Use:   "create <workspace/repo> <tag-name>",
+	Use:   "create [workspace/repo] <tag-name>",
 	Short: "Create a tag",
 	Long: `Create a new tag in a repository.
 
 Example:
   bb tag create myworkspace/myrepo v1.0.0 --target main
   bb tag create myworkspace/myrepo v1.0.0 --target abc123 --message "Release 1.0.0"`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runTagCreate,
 }
 
 var tagViewCmd = &cobra.Command{
-	Use:   "view <workspace/repo> <tag-name>",
+	Use:   "view [workspace/repo] <tag-name>",
 	Short: "View tag details",
 	Long:  `Display detailed information about a specific tag.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runTagView,
 }
 
 var tagDeleteCmd = &cobra.Command{
-	Use:   "delete <workspace/repo> <tag-name>",
+	Use:   "delete [workspace/repo] <tag-name>",
 	Short: "Delete a tag",
 	Long:  `Delete a tag from a repository.`,
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runTagDelete,
 }
 
@@ -86,7 +86,7 @@ func runTagList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
 	}
@@ -173,12 +173,12 @@ func runTagCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	tagName := args[1]
+	tagName := rest[0]
 
 	tagReq := map[string]interface{}{
 		"name": tagName,
@@ -234,12 +234,12 @@ func runTagView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	tagName := args[1]
+	tagName := rest[0]
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugRefsTagsName(
 		ctx,
@@ -309,12 +309,12 @@ func runTagDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := api.ParseRepoContext(args[0])
+	repoCtx, rest, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
 
-	tagName := args[1]
+	tagName := rest[0]
 
 	// Use DeleteRepositoriesWorkspaceRepoSlugRefsTagsName
 	resp, err := client.DeleteRepositoriesWorkspaceRepoSlugRefsTagsName(

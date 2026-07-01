@@ -332,6 +332,152 @@ func TestGetValidToken_APIToken(t *testing.T) {
 	}
 }
 
+func TestAccessTokenExpiredOrUnknown(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	now := time.Now().Unix()
+
+	cases := []struct {
+		name  string
+		token *TokenData
+		want  bool
+	}{
+		{"unknown expiry (old token)", &TokenData{AccessToken: "a", ExpiresAt: 0}, true},
+		{"expired", &TokenData{AccessToken: "a", ExpiresAt: now - 10}, true},
+		{"valid", &TokenData{AccessToken: "a", ExpiresAt: now + 3600}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// store without recomputing ExpiresAt from ExpiresIn (it's 0 here)
+			if err := StoreTokens(c.token); err != nil {
+				t.Fatalf("StoreTokens: %v", err)
+			}
+			if got := AccessTokenExpiredOrUnknown(); got != c.want {
+				t.Errorf("AccessTokenExpiredOrUnknown() = %v, want %v", got, c.want)
+			}
+		})
+	}
+
+	t.Run("no tokens", func(t *testing.T) {
+		DeleteTokens()
+		if AccessTokenExpiredOrUnknown() {
+			t.Error("want false when not logged in")
+		}
+	})
+}
+
+func TestTokenDataNeedsRefresh(t *testing.T) {
+	now := time.Now().Unix()
+	cases := []struct {
+		name string
+		td   TokenData
+		want bool
+	}{
+		{"unknown expiry (older token)", TokenData{ExpiresAt: 0}, false},
+		{"already expired", TokenData{ExpiresAt: now - 10}, true},
+		{"within refresh buffer", TokenData{ExpiresAt: now + 60}, true},
+		{"comfortably fresh", TokenData{ExpiresAt: now + 3600}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.td.NeedsRefresh(); got != c.want {
+				t.Errorf("NeedsRefresh() = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestStoreTokens_ComputesExpiresAt(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+
+	td := &TokenData{AccessToken: "a", RefreshToken: "r", ExpiresIn: 7200}
+	before := time.Now().Unix()
+	if err := StoreTokens(td); err != nil {
+		t.Fatalf("StoreTokens error: %v", err)
+	}
+	if td.ExpiresAt < before+7200-5 || td.ExpiresAt > time.Now().Unix()+7200+5 {
+		t.Errorf("ExpiresAt = %d, want ~now+7200", td.ExpiresAt)
+	}
+
+	loaded, err := LoadTokens()
+	if err != nil {
+		t.Fatalf("LoadTokens error: %v", err)
+	}
+	if loaded.ExpiresAt != td.ExpiresAt {
+		t.Errorf("persisted ExpiresAt = %d, want %d", loaded.ExpiresAt, td.ExpiresAt)
+	}
+}
+
+func TestGetAPIEmail(t *testing.T) {
+	os.Unsetenv("BITBUCKET_EMAIL")
+	if GetAPIEmail() != "" {
+		t.Error("GetAPIEmail should return empty when env not set")
+	}
+
+	os.Setenv("BITBUCKET_EMAIL", "me@example.com")
+	defer os.Unsetenv("BITBUCKET_EMAIL")
+
+	if GetAPIEmail() != "me@example.com" {
+		t.Errorf("GetAPIEmail = %q, want %q", GetAPIEmail(), "me@example.com")
+	}
+}
+
+func TestGetCredential_TokenOnlyIsBearer(t *testing.T) {
+	os.Unsetenv("BITBUCKET_EMAIL")
+	os.Setenv("BITBUCKET_API_TOKEN", "raw-token")
+	defer os.Unsetenv("BITBUCKET_API_TOKEN")
+
+	cred, err := GetCredential()
+	if err != nil {
+		t.Fatalf("GetCredential error: %v", err)
+	}
+	if cred.Scheme != SchemeBearer {
+		t.Errorf("Scheme = %q, want %q", cred.Scheme, SchemeBearer)
+	}
+	if cred.Token != "raw-token" || cred.Username != "" {
+		t.Errorf("cred = %+v, want bearer raw-token with no username", cred)
+	}
+}
+
+func TestGetCredential_TokenWithEmailIsBasic(t *testing.T) {
+	os.Setenv("BITBUCKET_API_TOKEN", "api-token")
+	os.Setenv("BITBUCKET_EMAIL", "me@example.com")
+	defer os.Unsetenv("BITBUCKET_API_TOKEN")
+	defer os.Unsetenv("BITBUCKET_EMAIL")
+
+	cred, err := GetCredential()
+	if err != nil {
+		t.Fatalf("GetCredential error: %v", err)
+	}
+	if cred.Scheme != SchemeBasic {
+		t.Errorf("Scheme = %q, want %q", cred.Scheme, SchemeBasic)
+	}
+	if cred.Username != "me@example.com" || cred.Token != "api-token" {
+		t.Errorf("cred = %+v, want basic me@example.com:api-token", cred)
+	}
+}
+
+func TestGetCredential_OAuthIsBearer(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	os.Unsetenv("BITBUCKET_API_TOKEN")
+	os.Unsetenv("BITBUCKET_EMAIL")
+
+	if err := StoreTokens(&TokenData{AccessToken: "oauth-token"}); err != nil {
+		t.Fatalf("StoreTokens error: %v", err)
+	}
+
+	cred, err := GetCredential()
+	if err != nil {
+		t.Fatalf("GetCredential error: %v", err)
+	}
+	if cred.Scheme != SchemeBearer || cred.Token != "oauth-token" {
+		t.Errorf("cred = %+v, want bearer oauth-token", cred)
+	}
+}
+
 func TestGetValidToken_OAuthToken(t *testing.T) {
 	cleanup := setupTestHome(t)
 	defer cleanup()
@@ -512,6 +658,107 @@ func TestRefreshAccessToken_NoClientCredentials(t *testing.T) {
 	}
 }
 
+func TestBuildAuthorizeURL(t *testing.T) {
+	defer resetMocks()
+	u, state, err := BuildAuthorizeURL(OAuthConfig{ClientID: "cid", ClientSecret: "sec", Scopes: []string{"account"}})
+	if err != nil {
+		t.Fatalf("BuildAuthorizeURL error: %v", err)
+	}
+	if state == "" {
+		t.Error("expected a non-empty state")
+	}
+	if !strings.Contains(u, "client_id=cid") || !strings.Contains(u, "state="+state) {
+		t.Errorf("authorize URL missing client_id/state: %s", u)
+	}
+
+	if _, _, err := BuildAuthorizeURL(OAuthConfig{}); err == nil {
+		t.Error("expected error without client credentials")
+	}
+}
+
+func TestExchangeCallbackURL(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	defer resetMocks()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token":  "acc",
+			"refresh_token": "ref",
+			"expires_in":    7200,
+			"token_type":    "Bearer",
+		})
+	}))
+	defer server.Close()
+	tokenURL = server.URL
+
+	cfg := OAuthConfig{ClientID: "id", ClientSecret: "secret"}
+
+	// Full callback URL with matching state.
+	tokens, err := ExchangeCallbackURL(cfg, "st8", "http://localhost:34106/callback?state=st8&code=THECODE")
+	if err != nil || tokens.AccessToken != "acc" {
+		t.Fatalf("ExchangeCallbackURL(full url) = %+v, %v", tokens, err)
+	}
+
+	// Bare code (no URL) skips state validation.
+	if _, err := ExchangeCallbackURL(cfg, "st8", "BARECODE"); err != nil {
+		t.Errorf("ExchangeCallbackURL(bare code) error: %v", err)
+	}
+
+	// State mismatch is rejected.
+	if _, err := ExchangeCallbackURL(cfg, "st8", "http://x/callback?state=WRONG&code=Y"); err == nil {
+		t.Error("expected a state mismatch error")
+	}
+
+	// Empty input is rejected.
+	if _, err := ExchangeCallbackURL(cfg, "", ""); err == nil {
+		t.Error("expected an error for empty input")
+	}
+}
+
+func TestRefreshAccessToken_PreservesRefreshTokenWhenOmitted(t *testing.T) {
+	cleanup := setupTestHome(t)
+	defer cleanup()
+	defer resetMocks()
+
+	// Bitbucket's refresh response omits refresh_token.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "new-access-token",
+			"expires_in":   7200,
+			"token_type":   "Bearer",
+		})
+	}))
+	defer server.Close()
+	tokenURL = server.URL
+
+	os.Setenv("BB_CLIENT_ID", "test-client-id")
+	os.Setenv("BB_CLIENT_SECRET", "test-client-secret")
+	defer os.Unsetenv("BB_CLIENT_ID")
+	defer os.Unsetenv("BB_CLIENT_SECRET")
+
+	StoreTokens(&TokenData{AccessToken: "old-access", RefreshToken: "original-refresh"})
+
+	newTokens, err := RefreshAccessToken()
+	if err != nil {
+		t.Fatalf("RefreshAccessToken error: %v", err)
+	}
+	if newTokens.RefreshToken != "original-refresh" {
+		t.Errorf("returned RefreshToken = %q, want it preserved as original-refresh", newTokens.RefreshToken)
+	}
+
+	// And it must be persisted, so the next refresh still works.
+	stored, err := LoadTokens()
+	if err != nil {
+		t.Fatalf("LoadTokens error: %v", err)
+	}
+	if stored.RefreshToken != "original-refresh" {
+		t.Errorf("stored RefreshToken = %q, want original-refresh (not wiped)", stored.RefreshToken)
+	}
+}
+
 func TestRefreshAccessToken_Success(t *testing.T) {
 	cleanup := setupTestHome(t)
 	defer cleanup()
@@ -668,6 +915,58 @@ func TestDefaultScopes(t *testing.T) {
 			t.Errorf("DefaultScopes should contain %q", exp)
 		}
 	}
+}
+
+func TestResolveScopes(t *testing.T) {
+	// Empty spec -> default level (write), which includes a write scope but not admin.
+	def, err := ResolveScopes("")
+	if err != nil {
+		t.Fatalf("ResolveScopes(\"\") error: %v", err)
+	}
+	if !containsScope(def, "repository:write") {
+		t.Errorf("default level should include repository:write, got %v", def)
+	}
+	if containsScope(def, "repository:admin") {
+		t.Errorf("default level should NOT include repository:admin, got %v", def)
+	}
+
+	// Presets are ordered by privilege; admin is a superset of write of read.
+	read, _ := ResolveScopes("read")
+	write, _ := ResolveScopes("write")
+	admin, _ := ResolveScopes("admin")
+	if containsScope(read, "repository:write") {
+		t.Errorf("read should not include repository:write, got %v", read)
+	}
+	if !containsScope(admin, "repository:admin") {
+		t.Errorf("admin should include repository:admin, got %v", admin)
+	}
+	if len(read) >= len(write) || len(write) >= len(admin) {
+		t.Errorf("expected read < write < admin in scope count: %d/%d/%d", len(read), len(write), len(admin))
+	}
+
+	// Explicit list (comma and space separated) is passed through verbatim.
+	explicit, err := ResolveScopes("account, pipeline repository")
+	if err != nil {
+		t.Fatalf("ResolveScopes(explicit) error: %v", err)
+	}
+	want := []string{"account", "pipeline", "repository"}
+	if len(explicit) != len(want) {
+		t.Fatalf("explicit list = %v, want %v", explicit, want)
+	}
+	for i, w := range want {
+		if explicit[i] != w {
+			t.Errorf("explicit[%d] = %q, want %q", i, explicit[i], w)
+		}
+	}
+}
+
+func containsScope(scopes []string, want string) bool {
+	for _, s := range scopes {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestBuildAuthURL(t *testing.T) {
