@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
 	"github.com/ThomasRedstone/bb/internal/config"
@@ -558,9 +559,11 @@ func runRepoCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	if repoCreateProject != "" {
-		createReq["project"] = map[string]interface{}{
-			"key": repoCreateProject,
+		projectField := "key"
+		if strings.HasPrefix(repoCreateProject, "{") {
+			projectField = "uuid"
 		}
+		createReq["project"] = map[string]interface{}{projectField: repoCreateProject}
 	}
 
 	if repoCreateForkPolicy != "" {

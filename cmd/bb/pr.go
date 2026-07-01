@@ -821,13 +821,38 @@ func selectPRInteractively(ctx context.Context, client *api.Client, workspace, r
 		return 0, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if result.Values == nil || len(*result.Values) == 0 {
+	// Collect all PRs across pages.
+	allPRs := make([]bitbucket.Pullrequest, 0)
+	if result.Values != nil {
+		allPRs = append(allPRs, *result.Values...)
+	}
+	for result.Next != nil && *result.Next != "" {
+		nextResp, err := client.GetURL(ctx, *result.Next)
+		if err != nil {
+			return 0, fmt.Errorf("failed to fetch next page: %w", err)
+		}
+		if nextResp.StatusCode != 200 {
+			nextResp.Body.Close()
+			return 0, fmt.Errorf("API error: %s", nextResp.Status)
+		}
+		result = bitbucket.PaginatedPullrequests{}
+		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
+			nextResp.Body.Close()
+			return 0, fmt.Errorf("failed to parse response: %w", err)
+		}
+		nextResp.Body.Close()
+		if result.Values != nil {
+			allPRs = append(allPRs, *result.Values...)
+		}
+	}
+
+	if len(allPRs) == 0 {
 		return 0, fmt.Errorf("no open pull requests found")
 	}
 
 	// Build options for interactive selection
 	var options []interactive.Option
-	for _, pr := range *result.Values {
+	for _, pr := range allPRs {
 		id := 0
 		if pr.Id != nil {
 			id = *pr.Id

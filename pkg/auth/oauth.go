@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"net/url"
@@ -227,7 +228,7 @@ func startCallbackServer(expectedState string, codeChan chan<- string, errChan c
 			errDesc := query.Get("error_description")
 			errChan <- fmt.Errorf("authorization failed: %s - %s", errMsg, errDesc)
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h1>Authorization Failed</h1><p>%s</p><p>You can close this window.</p></body></html>", errDesc)
+			fmt.Fprintf(w, "<html><body><h1>Authorization Failed</h1><p>%s</p><p>You can close this window.</p></body></html>", html.EscapeString(errDesc))
 			return
 		}
 

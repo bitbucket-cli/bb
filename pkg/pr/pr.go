@@ -68,6 +68,11 @@ func List(ctx context.Context, workspace, repoSlug, state string) ([]PullRequest
 		if err != nil {
 			return prs, fmt.Errorf("fetch next page: %w", err)
 		}
+		if nextResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(nextResp.Body)
+			nextResp.Body.Close()
+			return prs, fmt.Errorf("API error %s: %s", nextResp.Status, body)
+		}
 		result = bitbucket.PaginatedPullrequests{}
 		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
 			nextResp.Body.Close()
