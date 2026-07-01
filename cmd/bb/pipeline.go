@@ -150,14 +150,9 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to fetch next page: %w", err)
 		}
 		if nextResp.StatusCode != 200 {
-<<<<<<< HEAD
-			nextResp.Body.Close()
-			return fmt.Errorf("API error: %s", nextResp.Status)
-=======
 			status := nextResp.Status
 			nextResp.Body.Close()
 			return fmt.Errorf("API error: %s", status)
->>>>>>> origin/main
 		}
 		result = bitbucket.PaginatedPipelines{}
 		if err := json.NewDecoder(nextResp.Body).Decode(&result); err != nil {
