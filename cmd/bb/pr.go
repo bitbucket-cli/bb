@@ -126,6 +126,9 @@ Use -i flag for interactive selection when pr-number is omitted.`,
 
 func init() {
 	prListCmd.Flags().StringVarP(&prState, "state", "s", "OPEN", "Filter by state (OPEN, MERGED, DECLINED)")
+	prListCmd.Flags().BoolVar(&prAll, "all", false, "List across all repos in the workspace (uses the workspace endpoint); defaults to your PRs")
+	prListCmd.Flags().StringVar(&prUser, "user", "", "With --all, list PRs for this user (UUID or account_id) instead of yourself")
+	prListCmd.Flags().BoolVar(&prLinks, "links", false, "Include a LINK column with each PR's URL (always present in --json)")
 
 	prCreateCmd.Flags().StringVarP(&prTitle, "title", "t", "", "Pull request title (required)")
 	prCreateCmd.Flags().StringVarP(&prBody, "body", "b", "", "Pull request description")
@@ -160,6 +163,10 @@ func init() {
 }
 
 func runPRList(cmd *cobra.Command, args []string) error {
+	if prAll || prUser != "" {
+		return runPRListAll(cmd, args)
+	}
+
 	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
@@ -181,23 +188,31 @@ func runPRList(cmd *cobra.Command, args []string) error {
 	}
 
 	headers := []string{"#", "TITLE", "AUTHOR", "BRANCH", "STATE"}
+	if prLinks {
+		headers = append(headers, "LINK")
+	}
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
 	for _, pr := range prs {
-		rows = append(rows, []string{
+		row := []string{
 			strconv.Itoa(pr.ID),
 			output.Truncate(pr.Title, 50),
 			pr.Author,
 			pr.Branch,
 			pr.State,
-		})
+		}
+		if prLinks {
+			row = append(row, pr.URL)
+		}
+		rows = append(rows, row)
 		jsonData = append(jsonData, map[string]interface{}{
 			"id":     pr.ID,
 			"title":  pr.Title,
 			"author": pr.Author,
 			"branch": pr.Branch,
 			"state":  pr.State,
+			"url":    pr.URL,
 		})
 	}
 

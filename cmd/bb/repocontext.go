@@ -4,9 +4,38 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ThomasRedstone/bb/internal/config"
 	"github.com/ThomasRedstone/bb/internal/git"
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 )
+
+// workspaceArg resolves just a workspace (for cross-repo commands). Resolution:
+// --repo/-R workspace > leading positional's workspace > BB_WORKSPACE/config >
+// current git remote's workspace.
+func workspaceArg(args []string) (string, error) {
+	if repoOverride != "" {
+		return firstSegment(repoOverride), nil
+	}
+	if len(args) > 0 {
+		return firstSegment(args[0]), nil
+	}
+	if ws := config.GetWorkspace(); ws != "" {
+		return ws, nil
+	}
+	ws, _, err := detectRepo()
+	if err != nil {
+		return "", fmt.Errorf("no workspace given and none detected; pass a workspace, set BB_WORKSPACE, or use --repo: %w", err)
+	}
+	return ws, nil
+}
+
+// firstSegment returns the part of s before the first '/', or s if none.
+func firstSegment(s string) string {
+	if i := strings.IndexByte(s, '/'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
 
 // repoOverride holds the value of the global --repo/-R flag.
 var repoOverride string
