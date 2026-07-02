@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/ThomasRedstone/bb/internal/output"
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
@@ -67,11 +68,123 @@ func init() {
 	projectCreateCmd.Flags().StringVarP(&projectDesc, "description", "d", "", "Project description")
 	projectCreateCmd.Flags().BoolVar(&projectPrivate, "private", true, "Make the project private")
 
+	projectReviewersCmd.AddCommand(projectReviewersListCmd, projectReviewersAddCmd, projectReviewersRemoveCmd)
 	projectCmd.AddCommand(projectListCmd)
 	projectCmd.AddCommand(projectViewCmd)
 	projectCmd.AddCommand(projectCreateCmd)
 	projectCmd.AddCommand(projectDeleteCmd)
+	projectCmd.AddCommand(projectReviewersCmd)
 	rootCmd.AddCommand(projectCmd)
+}
+
+var projectReviewersCmd = &cobra.Command{
+	Use:   "reviewers",
+	Short: "Manage a project's default reviewers",
+}
+
+var projectReviewersListCmd = &cobra.Command{
+	Use:   "list [workspace] <project-key>",
+	Short: "List default reviewers for a project",
+	Args:  cobra.RangeArgs(1, 2),
+	RunE:  runProjectReviewersList,
+}
+
+var projectReviewersAddCmd = &cobra.Command{
+	Use:   "add [workspace] <project-key> <selected-user>",
+	Short: "Add a default reviewer to a project",
+	Args:  cobra.RangeArgs(2, 3),
+	RunE:  runProjectReviewersAdd,
+}
+
+var projectReviewersRemoveCmd = &cobra.Command{
+	Use:   "remove [workspace] <project-key> <selected-user>",
+	Short: "Remove a default reviewer from a project",
+	Args:  cobra.RangeArgs(2, 3),
+	RunE:  runProjectReviewersRemove,
+}
+
+func runProjectReviewersList(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+	client, err := projectNewAPIClient()
+	if err != nil {
+		return err
+	}
+	ws, rest, err := workspaceAndArgs(args, 1)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/workspaces/%s/projects/%s/default-reviewers", ws, rest[0]), nil)
+	if err != nil {
+		return fmt.Errorf("failed to list reviewers: %w", err)
+	}
+	var page struct {
+		Values []struct {
+			DisplayName string `json:"display_name"`
+			UUID        string `json:"uuid"`
+			AccountID   string `json:"account_id"`
+		} `json:"values"`
+	}
+	if err := decodeJSON(resp, &page); err != nil {
+		return err
+	}
+	if len(page.Values) == 0 {
+		output.Info("No default reviewers")
+		return nil
+	}
+	headers := []string{"NAME", "UUID"}
+	var rows [][]string
+	var jsonData []map[string]interface{}
+	for _, u := range page.Values {
+		rows = append(rows, []string{u.DisplayName, u.UUID})
+		jsonData = append(jsonData, map[string]interface{}{"display_name": u.DisplayName, "uuid": u.UUID, "account_id": u.AccountID})
+	}
+	return output.Print(headers, rows, jsonData)
+}
+
+func runProjectReviewersAdd(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+	client, err := projectNewAPIClient()
+	if err != nil {
+		return err
+	}
+	ws, rest, err := workspaceAndArgs(args, 2)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/workspaces/%s/projects/%s/default-reviewers/%s", ws, rest[0], url.PathEscape(rest[1])), nil)
+	if err != nil {
+		return fmt.Errorf("failed to add reviewer: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("API error: %s", resp.Status)
+	}
+	output.Success("Added default reviewer %s to %s/%s", rest[1], ws, rest[0])
+	return nil
+}
+
+func runProjectReviewersRemove(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+	client, err := projectNewAPIClient()
+	if err != nil {
+		return err
+	}
+	ws, rest, err := workspaceAndArgs(args, 2)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/workspaces/%s/projects/%s/default-reviewers/%s", ws, rest[0], url.PathEscape(rest[1])), nil)
+	if err != nil {
+		return fmt.Errorf("failed to remove reviewer: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API error: %s", resp.Status)
+	}
+	output.Success("Removed default reviewer %s from %s/%s", rest[1], ws, rest[0])
+	return nil
 }
 
 func runProjectList(cmd *cobra.Command, args []string) error {

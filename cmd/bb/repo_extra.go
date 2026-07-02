@@ -9,14 +9,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var repoPermissionsGroups bool
+var (
+	repoPermissionsGroups bool
+	branchingSetDev       string
+	branchingSetProd      string
+)
 
 var repoBranchingModelCmd = &cobra.Command{
 	Use:   "branching-model [workspace/repo]",
-	Short: "Show the repository branching model",
-	Long:  `Display the repository's branching model (development/production branches and branch types).`,
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runRepoBranchingModel,
+	Short: "Show or set the repository branching model",
+	Long: `Display the repository's branching model (development/production branches and
+branch types), or set the development/production branches with --set-development
+and --set-production.`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runRepoBranchingModel,
 }
 
 var repoPermissionsCmd = &cobra.Command{
@@ -37,6 +43,8 @@ var repoForksCmd = &cobra.Command{
 
 func init() {
 	repoPermissionsCmd.Flags().BoolVar(&repoPermissionsGroups, "groups", false, "List group permissions instead of user permissions")
+	repoBranchingModelCmd.Flags().StringVar(&branchingSetDev, "set-development", "", "Set the development branch name")
+	repoBranchingModelCmd.Flags().StringVar(&branchingSetProd, "set-production", "", "Set the production branch name (enables production)")
 
 	repoCmd.AddCommand(repoBranchingModelCmd)
 	repoCmd.AddCommand(repoPermissionsCmd)
@@ -53,6 +61,29 @@ func runRepoBranchingModel(cmd *cobra.Command, args []string) error {
 	repoCtx, err := repoArg(args)
 	if err != nil {
 		return err
+	}
+
+	// Write path: --set-development / --set-production update the branching-model
+	// settings via PUT; otherwise fall through to the read below.
+	if branchingSetDev != "" || branchingSetProd != "" {
+		body := map[string]interface{}{}
+		if branchingSetDev != "" {
+			body["development"] = map[string]interface{}{"name": branchingSetDev, "use_mainbranch": false}
+		}
+		if branchingSetProd != "" {
+			body["production"] = map[string]interface{}{"name": branchingSetProd, "use_mainbranch": false, "enabled": true}
+		}
+		resp, err := client.Request(ctx, http.MethodPut,
+			fmt.Sprintf("/repositories/%s/%s/branching-model/settings", repoCtx.Workspace, repoCtx.RepoSlug), body)
+		if err != nil {
+			return fmt.Errorf("failed to update branching model: %w", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("API error: %s", resp.Status)
+		}
+		output.Success("Updated branching model for %s/%s", repoCtx.Workspace, repoCtx.RepoSlug)
+		return nil
 	}
 
 	resp, err := client.GetRepositoriesWorkspaceRepoSlugBranchingModel(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
