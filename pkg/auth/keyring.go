@@ -15,11 +15,26 @@ import (
 // expiry, to avoid racing a request against the boundary.
 const refreshBufferSeconds = 120
 
+// serviceName is the Secret Service item under which tokens are stored. It is a
+// var (not const) so tests can redirect it away from the real user's keyring
+// entry via SetKeyringServiceForTesting — otherwise running the test suite,
+// which exercises StoreTokens/DeleteTokens, would delete the developer's real
+// login token from the keyring.
+var serviceName = "bb-cli"
+
 const (
-	serviceName     = "bb-cli"
 	accessTokenKey  = "access_token"
 	refreshTokenKey = "refresh_token"
 )
+
+// SetKeyringServiceForTesting overrides the keyring service name and returns a
+// restore func. Tests (including in other packages) MUST call this so the suite
+// never reads or deletes the real user's stored OAuth token.
+func SetKeyringServiceForTesting(name string) func() {
+	old := serviceName
+	serviceName = name
+	return func() { serviceName = old }
+}
 
 // ForceFileStorage can be set to true in tests to skip keyring
 var ForceFileStorage = false
@@ -73,6 +88,60 @@ func AccessTokenExpiredOrUnknown() bool {
 	return tokens.NeedsRefresh()
 }
 
+// keyringAttempts is how many times keyring reads/writes are retried on
+// transient errors.
+const keyringAttempts = 3
+
+// keyringSetVerified stores value under the tokens key, then reads it back to
+// confirm it persisted, retrying on transient failure. This guards against a
+// Set that reports success but doesn't persist (e.g. a store interrupted by a
+// killed process, or a transient D-Bus/keyring error) — the class of failure
+// that made tokens silently vanish.
+func keyringSetVerified(value string) error {
+	var lastErr error
+	for i := 0; i < keyringAttempts; i++ {
+		if i > 0 {
+			time.Sleep(time.Duration(i) * 50 * time.Millisecond)
+		}
+		if err := keyring.Set(serviceName, "tokens", value); err != nil {
+			lastErr = err
+			debugLog("keyring.Set attempt %d failed: %v", i+1, err)
+			continue
+		}
+		got, gerr := keyring.Get(serviceName, "tokens")
+		if gerr == nil && got == value {
+			if i > 0 {
+				debugLog("keyring.Set succeeded on attempt %d (after read-back verify)", i+1)
+			}
+			return nil
+		}
+		lastErr = fmt.Errorf("keyring write did not persist (read-back err=%v)", gerr)
+		debugLog("keyring.Set attempt %d: read-back verify FAILED (err=%v)", i+1, gerr)
+	}
+	return lastErr
+}
+
+// keyringGetRetry reads the tokens value, retrying on transient (non-not-found)
+// errors. A genuine "not found" returns immediately (no retry).
+func keyringGetRetry() (string, error) {
+	var lastErr error
+	for i := 0; i < keyringAttempts; i++ {
+		if i > 0 {
+			time.Sleep(time.Duration(i) * 50 * time.Millisecond)
+		}
+		v, err := keyring.Get(serviceName, "tokens")
+		if err == nil {
+			return v, nil
+		}
+		if errors.Is(err, keyring.ErrNotFound) {
+			return "", err
+		}
+		lastErr = err
+		debugLog("keyring.Get attempt %d transient error: %v", i+1, err)
+	}
+	return "", lastErr
+}
+
 // StoreTokens saves tokens to the system keyring
 func StoreTokens(data *TokenData) error {
 	// Record an absolute expiry so callers can refresh proactively rather than
@@ -92,10 +161,10 @@ func StoreTokens(data *TokenData) error {
 		return storeTokensToFile(data)
 	}
 
-	// Try system keyring first
-	err = keyring.Set(serviceName, "tokens", string(jsonData))
+	// Try system keyring first (with retry + read-back verify).
+	err = keyringSetVerified(string(jsonData))
 	if err != nil {
-		debugLog("StoreTokens: keyring.Set FAILED (%v) -> file fallback", err)
+		debugLog("StoreTokens: keyring.Set FAILED after retries (%v) -> file fallback", err)
 		if ferr := storeTokensToFile(data); ferr != nil {
 			debugLog("StoreTokens: file fallback FAILED: %v", ferr)
 			return ferr
@@ -120,8 +189,8 @@ func LoadTokens() (*TokenData, error) {
 		return data, nil
 	}
 
-	// Try system keyring first
-	jsonData, err := keyring.Get(serviceName, "tokens")
+	// Try system keyring first (with retry on transient errors).
+	jsonData, err := keyringGetRetry()
 	if err != nil {
 		notFound := errors.Is(err, keyring.ErrNotFound)
 		debugLog("LoadTokens: keyring.Get error notFound=%v err=%v -> file fallback", notFound, err)
@@ -189,7 +258,17 @@ func storeTokensToFile(data *TokenData) error {
 		return err
 	}
 
-	return os.WriteFile(path, jsonData, 0600)
+	// Write atomically: write a temp file then rename over the target, so a
+	// process killed mid-write can never leave a truncated/empty tokens file.
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, jsonData, 0600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 func loadTokensFromFile() (*TokenData, error) {
