@@ -21,6 +21,7 @@ The CLI currently supports:
 - **Projects**: List, view, create, delete
 - **Workspaces**: List, view, members, projects; workspace-level webhooks + pipeline variables
 - **Users**: Current user (whoami), profile lookup
+- **Account keys**: SSH keys and GPG keys (list/add/delete)
 - **Search**: Workspace-wide code search
 - **Configuration**: Manage CLI settings; `client_secret_command` for external secret stores
 - **Shell Completions**: Bash, Zsh, Fish, PowerShell
