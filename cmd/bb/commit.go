@@ -54,6 +54,34 @@ func init() {
 	commitCmd.AddCommand(commitListCmd)
 	commitCmd.AddCommand(commitViewCmd)
 	commitCmd.AddCommand(commitActivityCmd)
+	commitCmd.AddCommand(commitStatusCmd)
+}
+
+var commitStatusCmd = &cobra.Command{
+	Use:   "status [workspace/repo] <hash>",
+	Short: "List build/CI statuses for a commit",
+	Long:  `Show the build/CI statuses reported on a commit (e.g. pipeline results).`,
+	Args:  cobra.RangeArgs(1, 2),
+	RunE:  runCommitStatus,
+}
+
+func runCommitStatus(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+
+	client, err := commitNewAPIClient()
+	if err != nil {
+		return err
+	}
+	repoCtx, rest, err := repoAndArgs(args, 1)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.GetRepositoriesWorkspaceRepoSlugCommitCommitStatuses(ctx, repoCtx.Workspace, repoCtx.RepoSlug, rest[0], nil)
+	if err != nil {
+		return fmt.Errorf("failed to get commit statuses: %w", err)
+	}
+	return renderStatuses(ctx, client, resp)
 }
 
 func runCommitList(cmd *cobra.Command, args []string) error {

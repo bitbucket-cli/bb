@@ -160,6 +160,8 @@ func init() {
 	prCmd.AddCommand(prCommentsCmd)
 	prCmd.AddCommand(prCommentCmd)
 	prCmd.AddCommand(prDiffCmd)
+	prChecksCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
+	prCmd.AddCommand(prChecksCmd)
 }
 
 func runPRList(cmd *cobra.Command, args []string) error {
