@@ -27,13 +27,14 @@ The CLI currently supports:
 - **Shell Completions**: Bash, Zsh, Fish, PowerShell
 - **Git integration**: Auto-detect workspace/repo from the origin remote; every repo-scoped command takes an optional positional / `-R`
 
-All major Bitbucket Cloud REST API groups are now covered. The remaining surface
-is a low-value / niche long tail:
+All major Bitbucket Cloud REST API groups are now covered, including project
+default reviewers and branching-model **write** (`bb repo branching-model
+--set-development/--set-production`). The remaining surface is a small
+niche/admin long tail:
 
-- **Repository settings *write*** — branching-model/permissions are read-only (the
-  branching-model settings PUT has a large nested body; deferred as low-value).
-- **Project sub-resources** — project-level default reviewers, deploy keys,
-  permissions, and branch restrictions (niche admin; `bb project` covers core CRUD).
+- **Project sub-resources** — project-level deploy keys, permissions config, and
+  branch restrictions (`bb project` covers CRUD + default reviewers).
+- **Repository group/user permission *write*** — permissions are read-only.
 - **Pipeline step artifact download** — list/delete of caches exists; artifact
   download pending.
 - **Not feasible (no Bitbucket Cloud API)**: notifications, real-time log
