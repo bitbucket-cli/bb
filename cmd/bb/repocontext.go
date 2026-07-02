@@ -29,6 +29,28 @@ func workspaceArg(args []string) (string, error) {
 	return ws, nil
 }
 
+// workspaceAndArgs resolves a workspace for a workspace-scoped command that
+// takes requiredTrailing positional args after an optional leading workspace,
+// returning the workspace and the trailing args. Count-based, mirroring
+// repoAndArgs. Resolution: --repo/-R workspace > leading positional >
+// BB_WORKSPACE/config > current git remote.
+func workspaceAndArgs(args []string, requiredTrailing int) (string, []string, error) {
+	if repoOverride != "" {
+		return firstSegment(repoOverride), args, nil
+	}
+	if len(args) > requiredTrailing {
+		return firstSegment(args[0]), args[1:], nil
+	}
+	if ws := config.GetWorkspace(); ws != "" {
+		return ws, args, nil
+	}
+	ws, _, err := detectRepo()
+	if err != nil {
+		return "", nil, fmt.Errorf("no workspace given and none detected; pass a workspace, set BB_WORKSPACE, or use --repo: %w", err)
+	}
+	return ws, args, nil
+}
+
 // firstSegment returns the part of s before the first '/', or s if none.
 func firstSegment(s string) string {
 	if i := strings.IndexByte(s, '/'); i >= 0 {
