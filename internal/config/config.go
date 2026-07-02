@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -17,9 +19,14 @@ const (
 type Config struct {
 	ClientID     string `mapstructure:"client_id"`
 	ClientSecret string `mapstructure:"client_secret"`
-	Workspace    string `mapstructure:"workspace"`
-	OutputFormat string `mapstructure:"output_format"`
-	Scopes       string `mapstructure:"scopes"`
+	// *_command values are shell commands whose stdout supplies the credential,
+	// so a secret can stay in an external store (e.g. sops) instead of plaintext
+	// on disk, and bb can obtain it in any context without a shell wrapper.
+	ClientIDCommand     string `mapstructure:"client_id_command"`
+	ClientSecretCommand string `mapstructure:"client_secret_command"`
+	Workspace           string `mapstructure:"workspace"`
+	OutputFormat        string `mapstructure:"output_format"`
+	Scopes              string `mapstructure:"scopes"`
 }
 
 var cfg *Config
@@ -87,21 +94,48 @@ func Get() *Config {
 	return cfg
 }
 
-// GetClientID returns the OAuth client ID from env or config
+// runCredentialCommand runs a shell command and returns its trimmed stdout, or
+// "" on empty command or failure. Used to fetch a credential from an external
+// store (e.g. `sops -d ...`) so it need not be plaintext on disk.
+func runCredentialCommand(command string) string {
+	if strings.TrimSpace(command) == "" {
+		return ""
+	}
+	out, err := exec.Command("sh", "-c", command).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// GetClientID returns the OAuth client ID. Resolution order:
+// BB_CLIENT_ID > BB_CLIENT_ID_COMMAND > config client_id > config client_id_command.
 func GetClientID() string {
-	// Env vars take precedence
 	if id := os.Getenv("BB_CLIENT_ID"); id != "" {
 		return id
 	}
-	return Get().ClientID
+	if id := runCredentialCommand(os.Getenv("BB_CLIENT_ID_COMMAND")); id != "" {
+		return id
+	}
+	if id := Get().ClientID; id != "" {
+		return id
+	}
+	return runCredentialCommand(Get().ClientIDCommand)
 }
 
-// GetClientSecret returns the OAuth client secret from env or config
+// GetClientSecret returns the OAuth client secret. Resolution order:
+// BB_CLIENT_SECRET > BB_CLIENT_SECRET_COMMAND > config client_secret > config client_secret_command.
 func GetClientSecret() string {
 	if secret := os.Getenv("BB_CLIENT_SECRET"); secret != "" {
 		return secret
 	}
-	return Get().ClientSecret
+	if secret := runCredentialCommand(os.Getenv("BB_CLIENT_SECRET_COMMAND")); secret != "" {
+		return secret
+	}
+	if secret := Get().ClientSecret; secret != "" {
+		return secret
+	}
+	return runCredentialCommand(Get().ClientSecretCommand)
 }
 
 // GetWorkspace returns the default workspace

@@ -453,3 +453,18 @@ func TestWriteConfig_HomeDirError(t *testing.T) {
 		t.Error("SetWorkspace() should fail when home directory lookup fails")
 	}
 }
+
+func TestGetClientSecret_Command(t *testing.T) {
+	os.Unsetenv("BB_CLIENT_SECRET")
+	os.Setenv("BB_CLIENT_SECRET_COMMAND", "printf 'from-cmd'")
+	defer os.Unsetenv("BB_CLIENT_SECRET_COMMAND")
+	if got := GetClientSecret(); got != "from-cmd" {
+		t.Errorf("GetClientSecret via command = %q, want from-cmd", got)
+	}
+	// env value still wins over command
+	os.Setenv("BB_CLIENT_SECRET", "from-env")
+	defer os.Unsetenv("BB_CLIENT_SECRET")
+	if got := GetClientSecret(); got != "from-env" {
+		t.Errorf("env should win: got %q, want from-env", got)
+	}
+}
