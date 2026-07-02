@@ -7,21 +7,36 @@ This document outlines planned features and improvements for the Bitbucket CLI (
 The CLI currently supports:
 - **Authentication**: OAuth login/logout (selectable scope levels) with secure token storage; API-token fallback
 - **Repositories**: List, view, clone, create, update, fork, delete
-- **Pull Requests**: List, view, create (source defaults to current branch), merge, approve, request-changes, decline, comment (incl. inline), diff, checkout
+- **Pull Requests**: List (incl. `--all` cross-repo, per-user), view, create (source defaults to current branch), merge, approve, request-changes, decline, comment (incl. inline), diff, checkout, **checks** (build/CI statuses)
 - **Branches**: List, view, create, delete, restrictions
-- **Commits**: List (by branch/ref), view
-- **Pipelines**: List, view, trigger, stop, steps, logs; schedules (list/view/delete); caches (list/delete); variables (list/set/delete)
-- **Issues**: List, view, create, update, delete, comments
+- **Commits**: List (by branch/ref), view, activity, **status** (build/CI), **report** (Code Insights)
+- **Pipelines**: List, view, trigger, stop, steps, logs, analytics; schedules (list/view/delete); caches (list/delete); variables (list/set/delete)
+- **Issues**: List, view, create, update, delete, comments, milestones/versions/components, bulk
 - **Tags**: List, view, create, delete
-- **Webhooks**: List, view, create, delete
+- **Webhooks**: List, view, create, delete (repo **and workspace** level)
 - **Deploy keys**: List, add, view, delete
 - **Snippets**: List, view, create, update, delete
 - **Downloads**: List, upload, get, delete
-- **Deployments**: List environments, create, delete
-- **Workspaces**: List, view, members, projects
-- **Configuration**: Manage CLI settings
+- **Deployments**: List deployments, environments (list/create/delete)
+- **Projects**: List, view, create, delete
+- **Workspaces**: List, view, members, projects; workspace-level webhooks + pipeline variables
+- **Users**: Current user (whoami), profile lookup
+- **Search**: Workspace-wide code search
+- **Configuration**: Manage CLI settings; `client_secret_command` for external secret stores
 - **Shell Completions**: Bash, Zsh, Fish, PowerShell
-- **Git integration**: Auto-detect workspace/repo from the origin remote
+- **Git integration**: Auto-detect workspace/repo from the origin remote; every repo-scoped command takes an optional positional / `-R`
+
+All major Bitbucket Cloud REST API groups are now covered. The remaining surface
+is a low-value / niche long tail:
+
+- **Repository settings *write*** — branching-model/permissions are read-only (the
+  branching-model settings PUT has a large nested body; deferred as low-value).
+- **Project sub-resources** — project-level default reviewers, deploy keys,
+  permissions, and branch restrictions (niche admin; `bb project` covers core CRUD).
+- **Pipeline step artifact download** — list/delete of caches exists; artifact
+  download pending.
+- **Not feasible (no Bitbucket Cloud API)**: notifications, real-time log
+  streaming, merge-strategy configuration.
 
 ## Open-Source Release Blockers
 
