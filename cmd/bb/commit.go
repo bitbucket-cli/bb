@@ -55,6 +55,57 @@ func init() {
 	commitCmd.AddCommand(commitViewCmd)
 	commitCmd.AddCommand(commitActivityCmd)
 	commitCmd.AddCommand(commitStatusCmd)
+	commitCmd.AddCommand(commitReportCmd)
+}
+
+var commitReportCmd = &cobra.Command{
+	Use:   "report [workspace/repo] <hash>",
+	Short: "List code-insight reports on a commit",
+	Long:  `Show Code Insights reports (e.g. from CI/quality tools) attached to a commit.`,
+	Args:  cobra.RangeArgs(1, 2),
+	RunE:  runCommitReport,
+}
+
+func runCommitReport(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+	client, err := commitNewAPIClient()
+	if err != nil {
+		return err
+	}
+	repoCtx, rest, err := repoAndArgs(args, 1)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/repositories/%s/%s/commit/%s/reports", repoCtx.Workspace, repoCtx.RepoSlug, rest[0]), nil)
+	if err != nil {
+		return fmt.Errorf("failed to get reports: %w", err)
+	}
+	var page struct {
+		Values []struct {
+			Title      string `json:"title"`
+			Reporter   string `json:"reporter"`
+			ReportType string `json:"report_type"`
+			Result     string `json:"result"`
+			Details    string `json:"details"`
+		} `json:"values"`
+	}
+	if err := decodeJSON(resp, &page); err != nil {
+		return err
+	}
+	if len(page.Values) == 0 {
+		output.Info("No reports found")
+		return nil
+	}
+	headers := []string{"RESULT", "TITLE", "REPORTER", "TYPE"}
+	var rows [][]string
+	var jsonData []map[string]interface{}
+	for _, r := range page.Values {
+		rows = append(rows, []string{r.Result, output.Truncate(r.Title, 40), r.Reporter, r.ReportType})
+		jsonData = append(jsonData, map[string]interface{}{"result": r.Result, "title": r.Title, "reporter": r.Reporter, "type": r.ReportType, "details": r.Details})
+	}
+	return output.Print(headers, rows, jsonData)
 }
 
 var commitStatusCmd = &cobra.Command{
