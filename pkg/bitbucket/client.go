@@ -15,7 +15,9 @@ import (
 	"github.com/ThomasRedstone/bb/pkg/auth"
 )
 
-const baseURL = "https://api.bitbucket.org/2.0"
+// baseURL is the Bitbucket Cloud API root. A var (not const) so tests can point
+// the direct repository helpers at an httptest server.
+var baseURL = "https://api.bitbucket.org/2.0"
 
 // defaultHTTPClient is the shared transport for all API calls. Unlike
 // http.DefaultClient it carries a timeout, so a hung or slow-loris server can't
