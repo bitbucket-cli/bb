@@ -36,12 +36,16 @@ generated client (384 methods) leaves the following, grouped by usefulness:
 - Repositories: `bb repo permissions --set/--remove` (user/group writes)
 - Projects: `bb project update`
 
-**Niche / admin (feasible; on request):**
-- Project deploy keys, permission config (users/groups), project-level branching model
+**Org-admin — DONE:**
+- `bb project deploy-key` (list/add/delete), `bb project permissions` (list/--set/--remove)
+- `bb deploy env variable` (list/set/delete)
+
+**Remaining niche (documented; build on request):**
+- Project-level branching model
 - Issue vote/watch/attachments; snippet comments/watch
-- Pipeline SSH key-pair + known-hosts config; deployment (environment) variables
+- Pipeline SSH key-pair + known-hosts config
 - Create/update commit build statuses (usually posted by CI); repo override-settings
-- Write files / create commits over the API (`repo src` POST)
+- Write files / create commits over the API (`repo src` POST — multipart)
 
 **Not applicable to a user CLI:**
 - Connect "Addon" management and Forge "hosted property values"
