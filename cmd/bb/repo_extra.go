@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/ThomasRedstone/bb/internal/output"
 	"github.com/spf13/cobra"
@@ -13,6 +14,9 @@ var (
 	repoPermissionsGroups bool
 	branchingSetDev       string
 	branchingSetProd      string
+	permSetTarget         string
+	permSetLevel          string
+	permRemoveTarget      string
 )
 
 var repoBranchingModelCmd = &cobra.Command{
@@ -42,7 +46,10 @@ var repoForksCmd = &cobra.Command{
 }
 
 func init() {
-	repoPermissionsCmd.Flags().BoolVar(&repoPermissionsGroups, "groups", false, "List group permissions instead of user permissions")
+	repoPermissionsCmd.Flags().BoolVar(&repoPermissionsGroups, "groups", false, "Operate on group permissions instead of user permissions")
+	repoPermissionsCmd.Flags().StringVar(&permSetTarget, "set", "", "Grant/update permission for this user UUID/account_id (or group slug with --groups)")
+	repoPermissionsCmd.Flags().StringVar(&permSetLevel, "permission", "", "Permission level for --set (read, write, admin)")
+	repoPermissionsCmd.Flags().StringVar(&permRemoveTarget, "remove", "", "Remove permission for this user/group")
 	repoBranchingModelCmd.Flags().StringVar(&branchingSetDev, "set-development", "", "Set the development branch name")
 	repoBranchingModelCmd.Flags().StringVar(&branchingSetProd, "set-production", "", "Set the production branch name (enables production)")
 
@@ -135,6 +142,40 @@ func runRepoPermissions(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	repoCtx, err := repoArg(args)
+	if err == nil && (permSetTarget != "" || permRemoveTarget != "") {
+		kind := "users"
+		if repoPermissionsGroups {
+			kind = "groups"
+		}
+		if permRemoveTarget != "" {
+			resp, rerr := client.Request(ctx, http.MethodDelete,
+				fmt.Sprintf("/repositories/%s/%s/permissions-config/%s/%s", repoCtx.Workspace, repoCtx.RepoSlug, kind, url.PathEscape(permRemoveTarget)), nil)
+			if rerr != nil {
+				return fmt.Errorf("failed to remove permission: %w", rerr)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				return fmt.Errorf("API error: %s", resp.Status)
+			}
+			output.Success("Removed %s permission for %s", kind, permRemoveTarget)
+			return nil
+		}
+		if permSetLevel == "" {
+			return fmt.Errorf("--permission is required with --set (read, write, admin)")
+		}
+		resp, rerr := client.Request(ctx, http.MethodPut,
+			fmt.Sprintf("/repositories/%s/%s/permissions-config/%s/%s", repoCtx.Workspace, repoCtx.RepoSlug, kind, url.PathEscape(permSetTarget)),
+			map[string]interface{}{"permission": permSetLevel})
+		if rerr != nil {
+			return fmt.Errorf("failed to set permission: %w", rerr)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return fmt.Errorf("API error: %s", resp.Status)
+		}
+		output.Success("Set %s permission %q for %s", kind, permSetLevel, permSetTarget)
+		return nil
+	}
 	if err != nil {
 		return err
 	}

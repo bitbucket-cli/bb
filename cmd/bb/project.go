@@ -74,7 +74,57 @@ func init() {
 	projectCmd.AddCommand(projectCreateCmd)
 	projectCmd.AddCommand(projectDeleteCmd)
 	projectCmd.AddCommand(projectReviewersCmd)
+	projectUpdateCmd.Flags().StringVarP(&projectName, "name", "n", "", "New project name")
+	projectUpdateCmd.Flags().StringVarP(&projectDesc, "description", "d", "", "New description")
+	projectUpdateCmd.Flags().BoolVar(&projectPrivate, "private", false, "Make the project private")
+	projectUpdateCmd.Flags().Bool("public", false, "Make the project public")
+	projectCmd.AddCommand(projectUpdateCmd)
 	rootCmd.AddCommand(projectCmd)
+}
+
+var projectUpdateCmd = &cobra.Command{
+	Use:   "update [workspace] <project-key>",
+	Short: "Update a project's name/description/visibility",
+	Args:  cobra.RangeArgs(1, 2),
+	RunE:  runProjectUpdate,
+}
+
+func runProjectUpdate(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+	client, err := projectNewAPIClient()
+	if err != nil {
+		return err
+	}
+	ws, rest, err := workspaceAndArgs(args, 1)
+	if err != nil {
+		return err
+	}
+	body := map[string]interface{}{}
+	if cmd.Flags().Changed("name") {
+		body["name"] = projectName
+	}
+	if cmd.Flags().Changed("description") {
+		body["description"] = projectDesc
+	}
+	if cmd.Flags().Changed("private") {
+		body["is_private"] = true
+	}
+	if cmd.Flags().Changed("public") {
+		body["is_private"] = false
+	}
+	if len(body) == 0 {
+		return fmt.Errorf("nothing to update: pass --name, --description, --private, or --public")
+	}
+	resp, err := client.Request(ctx, http.MethodPut, fmt.Sprintf("/workspaces/%s/projects/%s", ws, rest[0]), body)
+	if err != nil {
+		return fmt.Errorf("failed to update project: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API error: %s", resp.Status)
+	}
+	output.Success("Updated project %s/%s", ws, rest[0])
+	return nil
 }
 
 var projectReviewersCmd = &cobra.Command{
