@@ -143,6 +143,17 @@ func TestRunConfigSet(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	// The config-write paths (config.SetWorkspace / writeConfigFile) resolve the
+	// file from $HOME via homeDirFunc, NOT from viper's config file — so
+	// viper.SetConfigFile below does NOT isolate them. Point HOME at the temp dir
+	// so this test can never clobber the developer's real ~/.config/bb/config.yaml.
+	// (It used to: "my-client-id"/"myworkspace" from the cases below were written
+	// straight into the real file.) t.Setenv auto-restores HOME on cleanup.
+	t.Setenv("HOME", tmpDir)
+	if err := os.MkdirAll(filepath.Join(tmpDir, ".config", "bb"), 0o755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+
 	// Set up viper to use temp dir
 	viper.Reset()
 	viper.SetConfigType("yaml")
