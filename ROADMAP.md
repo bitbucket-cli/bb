@@ -30,11 +30,11 @@ The CLI currently supports:
 All major Bitbucket Cloud REST API groups are covered. A full cross-check of the
 generated client (384 methods) leaves the following, grouped by usefulness:
 
-**Useful — being added:**
-- Pull requests: edit (title/body), tasks (list/add/complete), comment resolve/unresolve
-- Commits: comment (add/edit/delete), approve/unapprove
-- Repositories: user/group permission writes (read already exists)
-- Projects: update
+**Useful — DONE:**
+- Pull requests: `bb pr edit`, `bb pr tasks` (list/add/complete), `bb pr resolve`/`unresolve`
+- Commits: `bb commit comment`, `bb commit approve`/`unapprove`
+- Repositories: `bb repo permissions --set/--remove` (user/group writes)
+- Projects: `bb project update`
 
 **Niche / admin (feasible; on request):**
 - Project deploy keys, permission config (users/groups), project-level branching model
