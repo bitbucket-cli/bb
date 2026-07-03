@@ -218,8 +218,16 @@ func LoadTokens() (*TokenData, error) {
 	return &data, nil
 }
 
-// DeleteTokens removes stored tokens from all storage backends.
+// DeleteTokens removes stored tokens from all storage backends. When the file
+// store is forced (tests via ForceFileStorage, or BB_TOKEN_STORE=file), the
+// keyring is left untouched so a test run can never delete the developer's real
+// OAuth token from the system keyring.
 func DeleteTokens() error {
+	if useFileStore() {
+		debugLog("DeleteTokens: file store forced -> clearing file token store only")
+		_ = deleteTokenFile()
+		return nil
+	}
 	debugLog("DeleteTokens: clearing keyring + file token stores")
 	_ = keyring.Delete(serviceName, "tokens")
 	_ = deleteTokenFile()

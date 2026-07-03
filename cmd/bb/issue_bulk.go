@@ -21,7 +21,7 @@ var issueBulkCmd = &cobra.Command{
 
 Example:
   bb issue bulk myws/myrepo 12 15 19 --state resolved`,
-	Args: cobra.MaximumNArgs(1),
+	Args: cobra.MinimumNArgs(1),
 	RunE: runIssueBulk,
 }
 
@@ -38,9 +38,12 @@ func runIssueBulk(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, ids, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
+	}
+	if len(ids) == 0 {
+		return fmt.Errorf("no issue ids given; usage: bb issue bulk [workspace/repo] <issue-id...>")
 	}
 
 	body, err := json.Marshal(map[string]interface{}{"state": issueBulkState})
@@ -53,8 +56,6 @@ func runIssueBulk(cmd *cobra.Command, args []string) error {
 		req.Header.Set("Content-Type", "application/json")
 		return nil
 	}
-
-	ids := args[1:]
 	errs := runConcurrent(ids, 8, func(id string) error {
 		resp, err := client.PutRepositoriesWorkspaceRepoSlugIssuesIssueId(ctx, repoCtx.Workspace, repoCtx.RepoSlug, id, withBody)
 		if err != nil {

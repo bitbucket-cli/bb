@@ -43,7 +43,7 @@ var downloadUploadCmd = &cobra.Command{
 
 Example:
   bb download upload myworkspace/myrepo dist/app-linux dist/app-macos`,
-	Args: cobra.MaximumNArgs(1),
+	Args: cobra.MinimumNArgs(1),
 	RunE: runDownloadUpload,
 }
 
@@ -160,14 +160,17 @@ func runDownloadUpload(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoCtx, err := repoArg(args)
+	repoCtx, files, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no files given; usage: bb download upload [workspace/repo] <files...>")
 	}
 
 	body := &bytes.Buffer{}
 	mw := multipart.NewWriter(body)
-	for _, path := range args[1:] {
+	for _, path := range files {
 		f, err := os.Open(path)
 		if err != nil {
 			return fmt.Errorf("opening %s: %w", path, err)

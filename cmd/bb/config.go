@@ -254,5 +254,13 @@ func writeConfigFile() error {
 		return err
 	}
 	configPath := fmt.Sprintf("%s/config.yaml", dir)
-	return viper.WriteConfigAs(configPath)
+	if err := viper.WriteConfigAs(configPath); err != nil {
+		return err
+	}
+	// The file can hold the plaintext OAuth client_secret — keep it owner-only
+	// rather than the 0644 viper writes by default (mirrors internal/config.writeConfig).
+	if err := os.Chmod(configPath, 0600); err != nil {
+		return fmt.Errorf("could not secure config file permissions: %w", err)
+	}
+	return nil
 }

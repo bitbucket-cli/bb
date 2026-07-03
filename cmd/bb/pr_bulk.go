@@ -19,21 +19,21 @@ var prBulkCmd = &cobra.Command{
 var prBulkApproveCmd = &cobra.Command{
 	Use:   "approve <workspace/repo> <pr-number...>",
 	Short: "Approve multiple pull requests",
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.MinimumNArgs(1),
 	RunE:  func(cmd *cobra.Command, args []string) error { return runPRBulk(cmd, args, "approve") },
 }
 
 var prBulkDeclineCmd = &cobra.Command{
 	Use:   "decline <workspace/repo> <pr-number...>",
 	Short: "Decline multiple pull requests",
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.MinimumNArgs(1),
 	RunE:  func(cmd *cobra.Command, args []string) error { return runPRBulk(cmd, args, "decline") },
 }
 
 var prBulkMergeCmd = &cobra.Command{
 	Use:   "merge <workspace/repo> <pr-number...>",
 	Short: "Merge multiple pull requests (default merge strategy)",
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.MinimumNArgs(1),
 	RunE:  func(cmd *cobra.Command, args []string) error { return runPRBulk(cmd, args, "merge") },
 }
 
@@ -51,12 +51,14 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, err := repoArg(args)
+	repoCtx, ids, err := repoAndArgs(args, 1)
 	if err != nil {
 		return err
 	}
+	if len(ids) == 0 {
+		return fmt.Errorf("no pull request numbers given; usage: bb pr bulk %s [workspace/repo] <pr-number...>", action)
+	}
 
-	ids := args[1:]
 	// Independent calls — run them concurrently.
 	errs := runConcurrent(ids, 8, func(idStr string) error {
 		id, err := strconv.Atoi(idStr)
