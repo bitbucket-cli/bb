@@ -108,22 +108,21 @@ func runTagList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			Name   string `json:"name"`
-			Target *struct {
-				Hash    string `json:"hash"`
-				Date    string `json:"date"`
-				Message string `json:"message"`
-			} `json:"target"`
-		} `json:"values"`
+	type tagRow struct {
+		Name   string `json:"name"`
+		Target *struct {
+			Hash    string `json:"hash"`
+			Date    string `json:"date"`
+			Message string `json:"message"`
+		} `json:"target"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	tags, err := fetchAllPages[tagRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(tags) == 0 {
 		output.Info("No tags found")
 		return nil
 	}
@@ -132,7 +131,7 @@ func runTagList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, tag := range result.Values {
+	for _, tag := range tags {
 		hash := ""
 		date := ""
 		message := ""

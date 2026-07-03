@@ -22,11 +22,6 @@ const refreshBufferSeconds = 120
 // login token from the keyring.
 var serviceName = "bb-cli"
 
-const (
-	accessTokenKey  = "access_token"
-	refreshTokenKey = "refresh_token"
-)
-
 // SetKeyringServiceForTesting overrides the keyring service name and returns a
 // restore func. Tests (including in other packages) MUST call this so the suite
 // never reads or deletes the real user's stored OAuth token.

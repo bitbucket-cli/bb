@@ -58,16 +58,18 @@ brews:
     install: bin.install "bb"
     test: system "#{bin}/bb", "--version"
 
-# Windows Scoop manifest. Requires a ThomasRedstone/scoop-bucket repo and a
-# SCOOP_BUCKET_GITHUB_TOKEN secret (mirrors the Homebrew tap setup above).
-scoops:
-  - repository:
-      owner: ThomasRedstone
-      name: scoop-bucket
-      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
-    homepage: https://github.com/ThomasRedstone/bb
-    description: Bitbucket CLI — manage repositories, pull requests, and pipelines from your terminal
-    license: MIT
+# Windows Scoop manifest — DISABLED for v1. To enable: create a
+# ThomasRedstone/scoop-bucket repo, add a SCOOP_BUCKET_GITHUB_TOKEN secret and
+# pass it through in .github/workflows/release.yml, then uncomment this block.
+# (Windows users can still `go install` or download the release binary.)
+# scoops:
+#   - repository:
+#       owner: ThomasRedstone
+#       name: scoop-bucket
+#       token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+#     homepage: https://github.com/ThomasRedstone/bb
+#     description: Bitbucket CLI — manage repositories, pull requests, and pipelines from your terminal
+#     license: MIT
 
 # Linux packages (.deb / .rpm). Self-contained artifacts — no external repo
 # needed; published as release assets.

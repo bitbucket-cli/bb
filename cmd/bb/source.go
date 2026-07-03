@@ -101,14 +101,12 @@ func runSourceList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []sourceEntry `json:"values"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	entries, err := fetchAllPages[sourceEntry](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse listing (is %q a file? use `source view`): %w", path, err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(entries) == 0 {
 		output.Info("No entries found")
 		return nil
 	}
@@ -116,7 +114,7 @@ func runSourceList(cmd *cobra.Command, args []string) error {
 	headers := []string{"TYPE", "SIZE", "PATH"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, e := range result.Values {
+	for _, e := range entries {
 		kind := "file"
 		if e.Type == "commit_directory" {
 			kind = "dir"

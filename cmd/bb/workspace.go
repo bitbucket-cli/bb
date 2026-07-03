@@ -84,20 +84,19 @@ func runWorkspaceList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			UUID string `json:"uuid"`
-			Name string `json:"name"`
-			Slug string `json:"slug"`
-			Type string `json:"type"`
-		} `json:"values"`
+	type workspaceRow struct {
+		UUID string `json:"uuid"`
+		Name string `json:"name"`
+		Slug string `json:"slug"`
+		Type string `json:"type"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	workspaces, err := fetchAllPages[workspaceRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(workspaces) == 0 {
 		output.Info("No workspaces found")
 		return nil
 	}
@@ -106,7 +105,7 @@ func runWorkspaceList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, ws := range result.Values {
+	for _, ws := range workspaces {
 		rows = append(rows, []string{
 			ws.Slug,
 			ws.Name,
@@ -204,22 +203,21 @@ func runWorkspaceMembers(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			User *struct {
-				DisplayName string `json:"display_name"`
-				Nickname    string `json:"nickname"`
-				AccountID   string `json:"account_id"`
-				UUID        string `json:"uuid"`
-			} `json:"user"`
-		} `json:"values"`
+	type memberRow struct {
+		User *struct {
+			DisplayName string `json:"display_name"`
+			Nickname    string `json:"nickname"`
+			AccountID   string `json:"account_id"`
+			UUID        string `json:"uuid"`
+		} `json:"user"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	members, err := fetchAllPages[memberRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(members) == 0 {
 		output.Info("No members found")
 		return nil
 	}
@@ -228,7 +226,7 @@ func runWorkspaceMembers(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, member := range result.Values {
+	for _, member := range members {
 		if member.User == nil {
 			continue
 		}
@@ -272,21 +270,20 @@ func runWorkspaceProjects(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			Key         string `json:"key"`
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			IsPrivate   bool   `json:"is_private"`
-			UUID        string `json:"uuid"`
-		} `json:"values"`
+	type projectRow struct {
+		Key         string `json:"key"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		IsPrivate   bool   `json:"is_private"`
+		UUID        string `json:"uuid"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	projects, err := fetchAllPages[projectRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(projects) == 0 {
 		output.Info("No projects found")
 		return nil
 	}
@@ -295,7 +292,7 @@ func runWorkspaceProjects(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, project := range result.Values {
+	for _, project := range projects {
 		private := "No"
 		if project.IsPrivate {
 			private = "Yes"

@@ -308,8 +308,8 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 // printTokenExpiry reports access-token expiry and whether silent refresh is
 // available — the things that determine whether you should ever need to re-login.
 func printTokenExpiry(status *auth.AuthStatus) {
-	switch {
-	case status.ExpiresAt == 0:
+	switch status.ExpiresAt {
+	case 0:
 		output.Info("Access token: expiry unknown (stored by an older version — run 'bb auth login' once to enable proactive refresh)")
 	default:
 		remaining := time.Until(time.Unix(status.ExpiresAt, 0))

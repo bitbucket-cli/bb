@@ -68,7 +68,7 @@ func (c *Client) doJSON(ctx context.Context, method, url string, body io.Reader)
 	if c.httpClient != nil {
 		resp, err = c.httpClient.Do(req)
 	} else {
-		resp, err = http.DefaultClient.Do(req)
+		resp, err = defaultHTTPClient.Do(req)
 	}
 	if err != nil {
 		return nil, err

@@ -111,27 +111,26 @@ func runDeployList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			UUID        string `json:"uuid"`
-			Environment *struct {
-				Name string `json:"name"`
-				UUID string `json:"uuid"`
-			} `json:"environment"`
-			Release *struct {
-				Name string `json:"name"`
-			} `json:"release"`
-			State *struct {
-				Name string `json:"name"`
-			} `json:"state"`
-		} `json:"values"`
+	type deploymentRow struct {
+		UUID        string `json:"uuid"`
+		Environment *struct {
+			Name string `json:"name"`
+			UUID string `json:"uuid"`
+		} `json:"environment"`
+		Release *struct {
+			Name string `json:"name"`
+		} `json:"release"`
+		State *struct {
+			Name string `json:"name"`
+		} `json:"state"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	deployments, err := fetchAllPages[deploymentRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(deployments) == 0 {
 		output.Info("No deployments found")
 		return nil
 	}
@@ -140,7 +139,7 @@ func runDeployList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, deployment := range result.Values {
+	for _, deployment := range deployments {
 		envName := ""
 		if deployment.Environment != nil {
 			envName = deployment.Environment.Name
@@ -205,21 +204,20 @@ func runDeployEnvList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			UUID            string `json:"uuid"`
-			Name            string `json:"name"`
-			EnvironmentType *struct {
-				Name string `json:"name"`
-			} `json:"environment_type"`
-		} `json:"values"`
+	type envRow struct {
+		UUID            string `json:"uuid"`
+		Name            string `json:"name"`
+		EnvironmentType *struct {
+			Name string `json:"name"`
+		} `json:"environment_type"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	environments, err := fetchAllPages[envRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(environments) == 0 {
 		output.Info("No environments found")
 		return nil
 	}
@@ -228,7 +226,7 @@ func runDeployEnvList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, env := range result.Values {
+	for _, env := range environments {
 		envTypeName := ""
 		if env.EnvironmentType != nil {
 			envTypeName = env.EnvironmentType.Name

@@ -20,11 +20,36 @@ A powerful command-line interface for Bitbucket Cloud, enabling you to manage re
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install ThomasRedstone/tap/bb
+```
+
+### go install
+
+```bash
+go install github.com/ThomasRedstone/bb/cmd/bb@latest
+```
+
+### Linux packages (.deb / .rpm)
+
+Download the `.deb` or `.rpm` for your architecture from the
+[latest release](https://github.com/ThomasRedstone/bb/releases/latest), then:
+
+```bash
+sudo dpkg -i bb_*_linux_amd64.deb   # Debian/Ubuntu
+sudo rpm -i  bb_*_linux_amd64.rpm   # Fedora/RHEL
+```
+
+Prebuilt binaries for Linux, macOS, and Windows (amd64 + arm64) are also
+attached to each release.
+
 ### From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/tom/bb.git
+git clone https://github.com/ThomasRedstone/bb.git
 cd bb
 
 # Build
@@ -36,7 +61,7 @@ sudo mv bb /usr/local/bin/
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.24 or later (only to build from source)
 - A Bitbucket Cloud account
 - OAuth consumer credentials (see [Authentication](#authentication))
 

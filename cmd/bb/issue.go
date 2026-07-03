@@ -153,28 +153,27 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			ID       int    `json:"id"`
-			Title    string `json:"title"`
-			State    string `json:"state"`
-			Priority string `json:"priority"`
-			Kind     string `json:"kind"`
-			Reporter *struct {
-				DisplayName string `json:"display_name"`
-			} `json:"reporter"`
-			Assignee *struct {
-				DisplayName string `json:"display_name"`
-			} `json:"assignee"`
-			CreatedOn string `json:"created_on"`
-		} `json:"values"`
+	type issueRow struct {
+		ID       int    `json:"id"`
+		Title    string `json:"title"`
+		State    string `json:"state"`
+		Priority string `json:"priority"`
+		Kind     string `json:"kind"`
+		Reporter *struct {
+			DisplayName string `json:"display_name"`
+		} `json:"reporter"`
+		Assignee *struct {
+			DisplayName string `json:"display_name"`
+		} `json:"assignee"`
+		CreatedOn string `json:"created_on"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	issues, err := fetchAllPages[issueRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(issues) == 0 {
 		output.Info("No issues found")
 		return nil
 	}
@@ -183,7 +182,7 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, issue := range result.Values {
+	for _, issue := range issues {
 		assignee := ""
 		if issue.Assignee != nil {
 			assignee = issue.Assignee.DisplayName

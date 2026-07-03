@@ -108,22 +108,21 @@ func runWebhookList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			UUID        string   `json:"uuid"`
-			URL         string   `json:"url"`
-			Description string   `json:"description"`
-			Active      bool     `json:"active"`
-			Events      []string `json:"events"`
-			CreatedAt   string   `json:"created_at"`
-		} `json:"values"`
+	type webhookRow struct {
+		UUID        string   `json:"uuid"`
+		URL         string   `json:"url"`
+		Description string   `json:"description"`
+		Active      bool     `json:"active"`
+		Events      []string `json:"events"`
+		CreatedAt   string   `json:"created_at"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	webhooks, err := fetchAllPages[webhookRow](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(webhooks) == 0 {
 		output.Info("No webhooks found")
 		return nil
 	}
@@ -132,7 +131,7 @@ func runWebhookList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, webhook := range result.Values {
+	for _, webhook := range webhooks {
 		active := "No"
 		if webhook.Active {
 			active = "Yes"

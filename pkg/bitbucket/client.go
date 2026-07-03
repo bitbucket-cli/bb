@@ -9,12 +9,18 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
 	"github.com/ThomasRedstone/bb/pkg/auth"
 )
 
 const baseURL = "https://api.bitbucket.org/2.0"
+
+// defaultHTTPClient is the shared transport for all API calls. Unlike
+// http.DefaultClient it carries a timeout, so a hung or slow-loris server can't
+// make bb block forever. Mirrors the 30s used by the OAuth token-exchange client.
+var defaultHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // For testing - allows mocking
 var (
@@ -121,7 +127,7 @@ func NewClient() (*Client, error) {
 
 	httpClient := &authClient{
 		cred:       cred,
-		underlying: http.DefaultClient,
+		underlying: defaultHTTPClient,
 		canRefresh: canRefresh,
 	}
 
@@ -241,7 +247,7 @@ func (c *Client) GetURL(ctx context.Context, url string) (*http.Response, error)
 		return c.httpClient.Do(req)
 	}
 	// Unauthenticated client (e.g. created directly in tests).
-	return http.DefaultClient.Do(req)
+	return defaultHTTPClient.Do(req)
 }
 
 // Request makes an authenticated request with an optional JSON body and returns
@@ -286,7 +292,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if c.Client != nil && c.Client.Client != nil {
 		return c.Client.Client.Do(req)
 	}
-	return http.DefaultClient.Do(req)
+	return defaultHTTPClient.Do(req)
 }
 
 // RequestRaw is like Request but sends a pre-encoded body with an explicit
@@ -316,7 +322,7 @@ func (c *Client) RequestRaw(ctx context.Context, method, path, contentType strin
 	if c.Client != nil && c.Client.Client != nil {
 		return c.Client.Client.Do(req)
 	}
-	return http.DefaultClient.Do(req)
+	return defaultHTTPClient.Do(req)
 }
 
 // Context helper
