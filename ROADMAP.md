@@ -27,18 +27,26 @@ The CLI currently supports:
 - **Shell Completions**: Bash, Zsh, Fish, PowerShell
 - **Git integration**: Auto-detect workspace/repo from the origin remote; every repo-scoped command takes an optional positional / `-R`
 
-All major Bitbucket Cloud REST API groups are now covered, including project
-default reviewers and branching-model **write** (`bb repo branching-model
---set-development/--set-production`). The remaining surface is a small
-niche/admin long tail:
+All major Bitbucket Cloud REST API groups are covered. A full cross-check of the
+generated client (384 methods) leaves the following, grouped by usefulness:
 
-- **Project sub-resources** — project-level deploy keys, permissions config, and
-  branch restrictions (`bb project` covers CRUD + default reviewers).
-- **Repository group/user permission *write*** — permissions are read-only.
-- **Pipeline step artifact download** — list/delete of caches exists; artifact
-  download pending.
-- **Not feasible (no Bitbucket Cloud API)**: notifications, real-time log
-  streaming, merge-strategy configuration.
+**Useful — being added:**
+- Pull requests: edit (title/body), tasks (list/add/complete), comment resolve/unresolve
+- Commits: comment (add/edit/delete), approve/unapprove
+- Repositories: user/group permission writes (read already exists)
+- Projects: update
+
+**Niche / admin (feasible; on request):**
+- Project deploy keys, permission config (users/groups), project-level branching model
+- Issue vote/watch/attachments; snippet comments/watch
+- Pipeline SSH key-pair + known-hosts config; deployment (environment) variables
+- Create/update commit build statuses (usually posted by CI); repo override-settings
+- Write files / create commits over the API (`repo src` POST)
+
+**Not applicable to a user CLI:**
+- Connect "Addon" management and Forge "hosted property values"
+- Issue bulk import/export (migration tooling)
+- Not feasible (no Bitbucket API): notifications, real-time log streaming, merge-strategy config
 
 ## Open-Source Release Blockers
 

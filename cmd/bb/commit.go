@@ -56,6 +56,11 @@ func init() {
 	commitCmd.AddCommand(commitActivityCmd)
 	commitCmd.AddCommand(commitStatusCmd)
 	commitCmd.AddCommand(commitReportCmd)
+	commitCommentCmd.Flags().StringVarP(&commitCommentBody, "body", "b", "", "Comment text (required)")
+	commitCommentCmd.MarkFlagRequired("body")
+	commitCmd.AddCommand(commitCommentCmd)
+	commitCmd.AddCommand(commitApproveCmd)
+	commitCmd.AddCommand(commitUnapproveCmd)
 }
 
 var commitReportCmd = &cobra.Command{
@@ -352,4 +357,82 @@ func firstLine(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+var commitCommentBody string
+
+var commitCommentCmd = &cobra.Command{
+	Use:   "comment [workspace/repo] <hash>",
+	Short: "Add a comment to a commit",
+	Args:  cobra.RangeArgs(1, 2),
+	RunE:  runCommitComment,
+}
+
+var commitApproveCmd = &cobra.Command{
+	Use:   "approve [workspace/repo] <hash>",
+	Short: "Approve a commit",
+	Args:  cobra.RangeArgs(1, 2),
+	RunE:  runCommitApprove,
+}
+
+var commitUnapproveCmd = &cobra.Command{
+	Use:   "unapprove [workspace/repo] <hash>",
+	Short: "Remove your approval from a commit",
+	Args:  cobra.RangeArgs(1, 2),
+	RunE:  runCommitUnapprove,
+}
+
+func runCommitComment(cmd *cobra.Command, args []string) error {
+	ctx := cmdCtx(cmd)
+	client, err := commitNewAPIClient()
+	if err != nil {
+		return err
+	}
+	repoCtx, rest, err := repoAndArgs(args, 1)
+	if err != nil {
+		return err
+	}
+	body := map[string]interface{}{"content": map[string]interface{}{"raw": commitCommentBody}}
+	resp, err := client.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/repositories/%s/%s/commit/%s/comments", repoCtx.Workspace, repoCtx.RepoSlug, rest[0]), body)
+	if err != nil {
+		return fmt.Errorf("failed to add comment: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("API error: %s", resp.Status)
+	}
+	output.Success("Added comment to commit %s", shortHash(rest[0]))
+	return nil
+}
+
+func commitApproveOp(cmd *cobra.Command, args []string, method, verb string) error {
+	ctx := cmdCtx(cmd)
+	client, err := commitNewAPIClient()
+	if err != nil {
+		return err
+	}
+	repoCtx, rest, err := repoAndArgs(args, 1)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Request(ctx, method,
+		fmt.Sprintf("/repositories/%s/%s/commit/%s/approve", repoCtx.Workspace, repoCtx.RepoSlug, rest[0]), nil)
+	if err != nil {
+		return fmt.Errorf("failed to %s commit: %w", verb, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("API error: %s", resp.Status)
+	}
+	output.Success("%sd commit %s", verb, shortHash(rest[0]))
+	return nil
+}
+
+func runCommitApprove(cmd *cobra.Command, args []string) error {
+	return commitApproveOp(cmd, args, http.MethodPost, "Approve")
+}
+
+func runCommitUnapprove(cmd *cobra.Command, args []string) error {
+	return commitApproveOp(cmd, args, http.MethodDelete, "Unapprove")
 }
