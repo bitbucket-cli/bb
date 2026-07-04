@@ -469,6 +469,22 @@ client_secret: your_client_secret
 > credentials via `BB_CLIENT_ID` / `BB_CLIENT_SECRET` environment variables rather than
 > writing them to the config file.
 
+### Token storage
+
+OAuth tokens are persisted according to `token_store` (or the `BB_TOKEN_STORE`
+env var):
+
+| Mode | Behaviour |
+|------|-----------|
+| `auto` *(default)* | System keyring **plus** a `0600` file mirror at `~/.config/bb/tokens.json`. bb reads the keyring first and falls back to the file, re-seeding the keyring. This means a keyring that drops the entry (locking, session/collection eviction, headless boxes) can no longer log you out. |
+| `keyring` | System keyring only. Most secure at-rest, but you'll be logged out whenever the keyring drops the entry. |
+| `file` | `0600` file only (`~/.config/bb/tokens.json`). Reliable and portable (works headless); tokens sit at-rest on disk. |
+
+```bash
+bb config set token_store keyring   # opt into keyring-only
+BB_TOKEN_STORE=file bb auth status  # one-off override
+```
+
 ## Examples
 
 ### Daily Workflow

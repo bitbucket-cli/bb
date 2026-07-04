@@ -173,6 +173,14 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 		if err := writeConfigFile(); err != nil {
 			return err
 		}
+	case "token_store":
+		if value != "auto" && value != "keyring" && value != "file" {
+			return fmt.Errorf("invalid token_store: %s (must be 'auto', 'keyring', or 'file')", value)
+		}
+		viper.Set("token_store", value)
+		if err := writeConfigFile(); err != nil {
+			return err
+		}
 	case "client_id":
 		viper.Set("client_id", value)
 		if err := writeConfigFile(); err != nil {

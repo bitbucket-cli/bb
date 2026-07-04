@@ -6,11 +6,24 @@ import (
 )
 
 // TestMain isolates the whole auth test suite from the developer's real stored
-// token by redirecting the keyring service name. Without this, the tests that
-// exercise StoreTokens/DeleteTokens delete the real "bb-cli" keyring entry —
-// i.e. `go test ./...` silently logs you out. (Individual tests already isolate
-// the file store via setupTestHome, so HOME is left alone here.)
+// token. It redirects BOTH:
+//   - the keyring service name (so StoreTokens/DeleteTokens can't touch the real
+//     "bb-cli" keyring entry), and
+//   - HOME (so the default "auto" store mode's 0600 file mirror, written under
+//     ~/.config/bb, lands in a throwaway dir — not the developer's real login).
+//
+// Without the HOME redirect, any test that calls StoreTokens in auto mode would
+// pollute ~/.config/bb/tokens.json (and, via keyring re-seed, the real keyring).
+// Individual tests may still layer their own temp HOME on top of this.
 func TestMain(m *testing.M) {
 	serviceName = "bb-cli-test"
-	os.Exit(m.Run())
+	tmp, err := os.MkdirTemp("", "bb-auth-test-home")
+	if err == nil {
+		os.Setenv("HOME", tmp)
+	}
+	code := m.Run()
+	if tmp != "" {
+		os.RemoveAll(tmp)
+	}
+	os.Exit(code)
 }

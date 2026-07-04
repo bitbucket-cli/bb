@@ -7,6 +7,7 @@ import (
 
 	"github.com/ThomasRedstone/bb/internal/config"
 	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/ThomasRedstone/bb/pkg/auth"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,9 @@ To get started, run:
 		if err := config.Init(); err != nil {
 			return err
 		}
+
+		// Apply the configured token storage mode (auto/keyring/file).
+		auth.SetTokenStoreMode(config.GetTokenStore())
 
 		// Set output format
 		if jsonOutput {

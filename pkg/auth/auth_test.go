@@ -1633,3 +1633,51 @@ func TestRefreshAccessToken_BadURL(t *testing.T) {
 		t.Error("RefreshAccessToken should fail with bad URL")
 	}
 }
+
+// TestAutoMode_FileMirrorSurvivesKeyringDrop is the regression test for the
+// repeated-logout bug: in the default "auto" mode a token stored to the keyring
+// is also mirrored to a 0600 file, so if the keyring later drops the entry the
+// token is still recovered from the file (and the keyring re-seeded). This is
+// deterministic on both keyring-backed and headless machines.
+func TestAutoMode_FileMirrorSurvivesKeyringDrop(t *testing.T) {
+	tmp := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmp)
+	ForceFileStorage = false
+	SetTokenStoreMode("auto")
+	t.Cleanup(func() {
+		os.Setenv("HOME", origHome)
+		SetTokenStoreMode("")
+		_ = keyring.Delete(serviceName, "tokens")
+	})
+
+	td := &TokenData{AccessToken: "acc-123", RefreshToken: "ref-456", ExpiresIn: 3600}
+	if err := StoreTokens(td); err != nil {
+		t.Fatalf("StoreTokens: %v", err)
+	}
+
+	// The 0600 file mirror must exist regardless of keyring availability.
+	mirror := filepath.Join(tmp, ".config", "bb", "tokens.json")
+	info, err := os.Stat(mirror)
+	if err != nil {
+		t.Fatalf("expected file mirror at %s: %v", mirror, err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("file mirror perms = %o, want 600", perm)
+	}
+
+	// Simulate the keyring silently dropping the entry.
+	_ = keyring.Delete(serviceName, "tokens")
+
+	// LoadTokens must still return the token from the file mirror.
+	got, err := LoadTokens()
+	if err != nil {
+		t.Fatalf("LoadTokens after keyring drop: %v", err)
+	}
+	if got.AccessToken != "acc-123" || got.RefreshToken != "ref-456" {
+		t.Errorf("wrong tokens after keyring-drop fallback: %+v", got)
+	}
+	if got.ExpiresAt == 0 {
+		t.Error("expected ExpiresAt to be computed and persisted")
+	}
+}
