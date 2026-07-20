@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -69,17 +68,16 @@ func runIssueNamedList(cmd *cobra.Command, args []string, kind string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			ID   int    `json:"id"`
-			Name string `json:"name"`
-		} `json:"values"`
+	type namedItem struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	items, err := fetchAllPages[namedItem](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(items) == 0 {
 		output.Info("No %s found", kind)
 		return nil
 	}
@@ -87,7 +85,7 @@ func runIssueNamedList(cmd *cobra.Command, args []string, kind string) error {
 	headers := []string{"ID", "NAME"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, v := range result.Values {
+	for _, v := range items {
 		rows = append(rows, []string{fmt.Sprintf("%d", v.ID), v.Name})
 		jsonData = append(jsonData, map[string]interface{}{"id": v.ID, "name": v.Name})
 	}

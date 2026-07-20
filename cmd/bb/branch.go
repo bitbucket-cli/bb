@@ -442,21 +442,20 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			ID              int    `json:"id"`
-			Kind            string `json:"kind"`
-			Pattern         string `json:"pattern"`
-			BranchMatchKind string `json:"branch_match_kind"`
-			Value           *int   `json:"value"`
-		} `json:"values"`
+	type branchRestriction struct {
+		ID              int    `json:"id"`
+		Kind            string `json:"kind"`
+		Pattern         string `json:"pattern"`
+		BranchMatchKind string `json:"branch_match_kind"`
+		Value           *int   `json:"value"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	restrictions, err := fetchAllPages[branchRestriction](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(restrictions) == 0 {
 		output.Info("No branch restrictions found")
 		return nil
 	}
@@ -465,7 +464,7 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, restriction := range result.Values {
+	for _, restriction := range restrictions {
 		value := ""
 		if restriction.Value != nil {
 			value = fmt.Sprintf("%d", *restriction.Value)

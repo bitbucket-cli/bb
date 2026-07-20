@@ -714,20 +714,19 @@ func runRepoReviewersList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			UUID        string `json:"uuid"`
-			DisplayName string `json:"display_name"`
-			Nickname    string `json:"nickname"`
-			AccountID   string `json:"account_id"`
-		} `json:"values"`
+	type defaultReviewer struct {
+		UUID        string `json:"uuid"`
+		DisplayName string `json:"display_name"`
+		Nickname    string `json:"nickname"`
+		AccountID   string `json:"account_id"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	reviewers, err := fetchAllPages[defaultReviewer](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(reviewers) == 0 {
 		output.Info("No default reviewers configured")
 		return nil
 	}
@@ -736,7 +735,7 @@ func runRepoReviewersList(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, reviewer := range result.Values {
+	for _, reviewer := range reviewers {
 		rows = append(rows, []string{
 			reviewer.DisplayName,
 			reviewer.Nickname,

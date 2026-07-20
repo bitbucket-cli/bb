@@ -563,33 +563,32 @@ func runIssueComments(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			ID      int `json:"id"`
-			Content *struct {
-				Raw string `json:"raw"`
-			} `json:"content"`
-			User *struct {
-				DisplayName string `json:"display_name"`
-			} `json:"user"`
-			CreatedOn string `json:"created_on"`
-		} `json:"values"`
+	type issueComment struct {
+		ID      int `json:"id"`
+		Content *struct {
+			Raw string `json:"raw"`
+		} `json:"content"`
+		User *struct {
+			DisplayName string `json:"display_name"`
+		} `json:"user"`
+		CreatedOn string `json:"created_on"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	comments, err := fetchAllPages[issueComment](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(comments) == 0 {
 		output.Info("No comments found")
 		return nil
 	}
 
 	if jsonOutput {
-		return output.Print(nil, nil, result.Values)
+		return output.Print(nil, nil, comments)
 	}
 
-	for _, comment := range result.Values {
+	for _, comment := range comments {
 		author := "Unknown"
 		if comment.User != nil {
 			author = comment.User.DisplayName

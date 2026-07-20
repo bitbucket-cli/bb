@@ -194,22 +194,21 @@ func runRepoPermissions(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			Permission string `json:"permission"`
-			User       *struct {
-				DisplayName string `json:"display_name"`
-			} `json:"user"`
-			Group *struct {
-				Name string `json:"name"`
-			} `json:"group"`
-		} `json:"values"`
+	type repoPermission struct {
+		Permission string `json:"permission"`
+		User       *struct {
+			DisplayName string `json:"display_name"`
+		} `json:"user"`
+		Group *struct {
+			Name string `json:"name"`
+		} `json:"group"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	permissions, err := fetchAllPages[repoPermission](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(permissions) == 0 {
 		output.Info("No permissions found")
 		return nil
 	}
@@ -217,7 +216,7 @@ func runRepoPermissions(cmd *cobra.Command, args []string) error {
 	headers := []string{"NAME", "PERMISSION"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, p := range result.Values {
+	for _, p := range permissions {
 		name := ""
 		if p.User != nil {
 			name = p.User.DisplayName
@@ -251,20 +250,19 @@ func runRepoForks(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			FullName  string `json:"full_name"`
-			IsPrivate bool   `json:"is_private"`
-			Owner     struct {
-				DisplayName string `json:"display_name"`
-			} `json:"owner"`
-		} `json:"values"`
+	type repoFork struct {
+		FullName  string `json:"full_name"`
+		IsPrivate bool   `json:"is_private"`
+		Owner     struct {
+			DisplayName string `json:"display_name"`
+		} `json:"owner"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	forks, err := fetchAllPages[repoFork](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(forks) == 0 {
 		output.Info("No forks found")
 		return nil
 	}
@@ -272,7 +270,7 @@ func runRepoForks(cmd *cobra.Command, args []string) error {
 	headers := []string{"FULL NAME", "PRIVATE", "OWNER"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, f := range result.Values {
+	for _, f := range forks {
 		priv := "No"
 		if f.IsPrivate {
 			priv = "Yes"

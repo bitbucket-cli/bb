@@ -119,14 +119,12 @@ func runPipelineScheduleList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []pipelineSchedule `json:"values"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	schedules, err := fetchAllPages[pipelineSchedule](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(schedules) == 0 {
 		output.Info("No schedules found")
 		return nil
 	}
@@ -134,7 +132,7 @@ func runPipelineScheduleList(cmd *cobra.Command, args []string) error {
 	headers := []string{"UUID", "ENABLED", "CRON", "REF"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, s := range result.Values {
+	for _, s := range schedules {
 		enabled := "No"
 		if s.Enabled {
 			enabled = "Yes"
@@ -282,14 +280,12 @@ func runPipelineCacheList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []pipelineCache `json:"values"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	caches, err := fetchAllPages[pipelineCache](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(caches) == 0 {
 		output.Info("No caches found")
 		return nil
 	}
@@ -297,7 +293,7 @@ func runPipelineCacheList(cmd *cobra.Command, args []string) error {
 	headers := []string{"NAME", "PATH", "SIZE", "CREATED"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, c := range result.Values {
+	for _, c := range caches {
 		rows = append(rows, []string{c.Name, output.Truncate(c.Path, 40), humanSize(c.FileSizeBytes), c.CreatedOn})
 		jsonData = append(jsonData, map[string]interface{}{
 			"uuid":            c.UUID,

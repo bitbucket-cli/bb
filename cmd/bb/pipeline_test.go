@@ -3,12 +3,17 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
+	"github.com/ThomasRedstone/bb/internal/output"
 	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
 )
 
@@ -778,6 +783,79 @@ func TestRunPipelineSteps_NoSteps(t *testing.T) {
 	err := runPipelineSteps(pipelineStepsCmd, []string{"workspace/repo", "uuid"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestRunPipelineSteps_FollowsPagination(t *testing.T) {
+	defer resetPipelineMocks()
+
+	const totalSteps = 11
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		makeStep := func(n int) map[string]interface{} {
+			return map[string]interface{}{
+				"uuid": fmt.Sprintf("{step-%d}", n),
+				"name": fmt.Sprintf("Step %d", n),
+				"state": map[string]interface{}{
+					"name": "COMPLETED",
+					"result": map[string]interface{}{
+						"name": "SUCCESSFUL",
+					},
+				},
+			}
+		}
+
+		if strings.Contains(r.URL.Path, "page2") {
+			// Second (final) page: steps 11..totalSteps, no further "next".
+			var values []interface{}
+			for n := 11; n <= totalSteps; n++ {
+				values = append(values, makeStep(n))
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"values": values})
+			return
+		}
+
+		// First page: steps 1..10, plus a "next" link to page 2.
+		var values []interface{}
+		for n := 1; n <= 10; n++ {
+			values = append(values, makeStep(n))
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"values": values,
+			"next":   server.URL + "/page2",
+		})
+	}))
+	defer server.Close()
+
+	pipelineNewAPIClient = mockAPIClientFactory(server)
+
+	origFormat := output.CurrentFormat
+	output.SetFormat("json")
+	defer func() { output.CurrentFormat = origFormat }()
+
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	runErr := runPipelineSteps(pipelineStepsCmd, []string{"workspace/repo", "uuid"})
+
+	w.Close()
+	os.Stdout = origStdout
+	captured, _ := io.ReadAll(r)
+
+	if runErr != nil {
+		t.Fatalf("Unexpected error: %v", runErr)
+	}
+
+	var steps []map[string]interface{}
+	if err := json.Unmarshal(captured, &steps); err != nil {
+		t.Fatalf("failed to parse JSON output: %v\noutput: %s", err, captured)
+	}
+	if len(steps) != totalSteps {
+		t.Fatalf("expected %d steps across pages, got %d", totalSteps, len(steps))
 	}
 }
 

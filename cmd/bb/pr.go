@@ -400,14 +400,58 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 		prRequest["description"] = prBody
 	}
 
-	// Add reviewers if specified
-	if len(prReviewers) > 0 {
-		reviewers := make([]map[string]interface{}, len(prReviewers))
-		for i, r := range prReviewers {
-			reviewers[i] = map[string]interface{}{
-				"username": r,
+	// Bitbucket's create-pull-request API does not auto-apply the repo's
+	// default reviewers (that only happens via the web UI), so fetch and
+	// include them explicitly, alongside any manually specified reviewers.
+	var reviewers []map[string]interface{}
+
+	// The API rejects a PR whose author is listed as a reviewer, which
+	// happens if the author is themselves a default reviewer, so resolve
+	// the current user and exclude them below.
+	selfUUID, err := currentUserUUID(ctx, client)
+	if err != nil {
+		output.Info("Warning: failed to resolve current user: %v", err)
+	}
+
+	defaultResp, err := client.GetRepositoriesWorkspaceRepoSlugDefaultReviewers(
+		ctx,
+		repoCtx.Workspace,
+		repoCtx.RepoSlug,
+	)
+	if err != nil {
+		output.Info("Warning: failed to fetch default reviewers: %v", err)
+	} else {
+		defer defaultResp.Body.Close()
+		if defaultResp.StatusCode == 200 {
+			var result struct {
+				Values []struct {
+					UUID string `json:"uuid"`
+				} `json:"values"`
 			}
+			if err := json.NewDecoder(defaultResp.Body).Decode(&result); err != nil {
+				output.Info("Warning: failed to parse default reviewers: %v", err)
+			} else {
+				for _, dr := range result.Values {
+					if selfUUID != "" && dr.UUID == selfUUID {
+						continue
+					}
+					reviewers = append(reviewers, map[string]interface{}{
+						"uuid": dr.UUID,
+					})
+				}
+			}
+		} else {
+			output.Info("Warning: failed to fetch default reviewers: %s", defaultResp.Status)
 		}
+	}
+
+	for _, r := range prReviewers {
+		reviewers = append(reviewers, map[string]interface{}{
+			"username": r,
+		})
+	}
+
+	if len(reviewers) > 0 {
 		prRequest["reviewers"] = reviewers
 	}
 
@@ -633,23 +677,21 @@ func runPRComments(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []bitbucket.PullrequestComment `json:"values"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	comments, err := fetchAllPages[bitbucket.PullrequestComment](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(comments) == 0 {
 		output.Info("No comments found")
 		return nil
 	}
 
 	if jsonOutput {
-		return output.JSON(result.Values)
+		return output.JSON(comments)
 	}
 
-	for _, comment := range result.Values {
+	for _, comment := range comments {
 		if comment.Deleted != nil && *comment.Deleted {
 			continue
 		}

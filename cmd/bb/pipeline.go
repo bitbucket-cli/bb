@@ -492,25 +492,24 @@ func runPipelineSteps(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			UUID  string `json:"uuid"`
-			Name  string `json:"name"`
-			State struct {
-				Name   string `json:"name"`
-				Result *struct {
-					Name string `json:"name"`
-				} `json:"result"`
-			} `json:"state"`
-			DurationInSeconds *int `json:"duration_in_seconds"`
-		} `json:"values"`
+	type pipelineStep struct {
+		UUID  string `json:"uuid"`
+		Name  string `json:"name"`
+		State struct {
+			Name   string `json:"name"`
+			Result *struct {
+				Name string `json:"name"`
+			} `json:"result"`
+		} `json:"state"`
+		DurationInSeconds *int `json:"duration_in_seconds"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	steps, err := fetchAllPages[pipelineStep](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(result.Values) == 0 {
+	if len(steps) == 0 {
 		output.Info("No steps found")
 		return nil
 	}
@@ -519,7 +518,7 @@ func runPipelineSteps(cmd *cobra.Command, args []string) error {
 	var rows [][]string
 	var jsonData []map[string]interface{}
 
-	for _, step := range result.Values {
+	for _, step := range steps {
 		status := step.State.Name
 		if step.State.Result != nil {
 			status = step.State.Result.Name

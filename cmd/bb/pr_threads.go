@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -65,21 +64,19 @@ func runPRThreads(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []prThreadComment `json:"values"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	comments, err := fetchAllPages[prThreadComment](ctx, client, resp)
+	if err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if jsonOutput {
-		return output.Print(nil, nil, result.Values)
+		return output.Print(nil, nil, comments)
 	}
 
 	// Build parent -> children, ignoring deleted comments.
 	children := map[int][]prThreadComment{}
 	var roots []prThreadComment
-	for _, c := range result.Values {
+	for _, c := range comments {
 		if c.Deleted {
 			continue
 		}

@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
@@ -542,6 +544,110 @@ func TestRunPRCreate_Success(t *testing.T) {
 	err := runPRCreate(prCreateCmd, []string{"workspace/repo"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestRunPRCreate_DefaultReviewers(t *testing.T) {
+	defer resetPRMocks()
+	origTitle := prTitle
+	origSource := prSource
+	origDest := prDest
+	prTitle = "Test PR"
+	prSource = "feature"
+	prDest = "main" // Set dest to skip repo lookup
+	defer func() {
+		prTitle = origTitle
+		prSource = origSource
+		prDest = origDest
+	}()
+
+	var capturedBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "default-reviewers") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"values": [{"uuid": "{default-reviewer-uuid}"}]}`))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		capturedBody = body
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"id": 1, "links": {"html": {"href": "https://bitbucket.org/pr/1"}}}`))
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+
+	err := runPRCreate(prCreateCmd, []string{"workspace/repo"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var req map[string]interface{}
+	if err := json.Unmarshal(capturedBody, &req); err != nil {
+		t.Fatalf("failed to parse captured request body: %v", err)
+	}
+	reviewers, ok := req["reviewers"].([]interface{})
+	if !ok || len(reviewers) != 1 {
+		t.Fatalf("expected 1 default reviewer in request, got: %v", req["reviewers"])
+	}
+	reviewer := reviewers[0].(map[string]interface{})
+	if reviewer["uuid"] != "{default-reviewer-uuid}" {
+		t.Errorf("expected default reviewer uuid, got: %v", reviewer)
+	}
+}
+
+func TestRunPRCreate_DefaultReviewers_ExcludesSelf(t *testing.T) {
+	defer resetPRMocks()
+	origTitle := prTitle
+	origSource := prSource
+	origDest := prDest
+	prTitle = "Test PR"
+	prSource = "feature"
+	prDest = "main" // Set dest to skip repo lookup
+	defer func() {
+		prTitle = origTitle
+		prSource = origSource
+		prDest = origDest
+	}()
+
+	var capturedBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "default-reviewers"):
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"values": [{"uuid": "{self-uuid}"}, {"uuid": "{other-reviewer-uuid}"}]}`))
+		case strings.HasSuffix(r.URL.Path, "/user"):
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"uuid": "{self-uuid}"}`))
+		default:
+			body, _ := io.ReadAll(r.Body)
+			capturedBody = body
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id": 1, "links": {"html": {"href": "https://bitbucket.org/pr/1"}}}`))
+		}
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+
+	err := runPRCreate(prCreateCmd, []string{"workspace/repo"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var req map[string]interface{}
+	if err := json.Unmarshal(capturedBody, &req); err != nil {
+		t.Fatalf("failed to parse captured request body: %v", err)
+	}
+	reviewers, ok := req["reviewers"].([]interface{})
+	if !ok || len(reviewers) != 1 {
+		t.Fatalf("expected 1 reviewer (self excluded) in request, got: %v", req["reviewers"])
+	}
+	reviewer := reviewers[0].(map[string]interface{})
+	if reviewer["uuid"] != "{other-reviewer-uuid}" {
+		t.Errorf("expected only the non-self default reviewer, got: %v", reviewer)
 	}
 }
 
