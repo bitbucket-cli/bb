@@ -14,6 +14,7 @@ var (
 	scheduleCron     string
 	scheduleBranch   string
 	scheduleDisabled bool
+	schedulePattern  string
 )
 
 var pipelineScheduleCmd = &cobra.Command{
@@ -83,6 +84,7 @@ func init() {
 	pipelineScheduleCreateCmd.Flags().StringVar(&scheduleBranch, "branch", "", "Branch whose pipeline to schedule (required)")
 	pipelineScheduleCreateCmd.Flags().StringVar(&scheduleCron, "cron", "", "Cron pattern (required)")
 	pipelineScheduleCreateCmd.Flags().BoolVar(&scheduleDisabled, "disabled", false, "Create the schedule disabled")
+	pipelineScheduleCreateCmd.Flags().StringVar(&schedulePattern, "pattern", "", "Custom pipeline pattern name (bitbucket-pipelines.yml pipelines.custom.<pattern>); omit to schedule the branch's default pipeline")
 	pipelineScheduleCreateCmd.MarkFlagRequired("branch")
 	pipelineScheduleCreateCmd.MarkFlagRequired("cron")
 
@@ -161,6 +163,16 @@ func runPipelineScheduleCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Best-effort body per the Bitbucket pipeline-schedule docs.
+	selector := map[string]interface{}{
+		"type":    "branches",
+		"pattern": scheduleBranch,
+	}
+	if schedulePattern != "" {
+		selector = map[string]interface{}{
+			"type":    "custom",
+			"pattern": schedulePattern,
+		}
+	}
 	payload := map[string]interface{}{
 		"type":    "pipeline_schedule",
 		"enabled": !scheduleDisabled,
@@ -168,10 +180,7 @@ func runPipelineScheduleCreate(cmd *cobra.Command, args []string) error {
 			"type":     "pipeline_ref_target",
 			"ref_type": "branch",
 			"ref_name": scheduleBranch,
-			"selector": map[string]interface{}{
-				"type":    "branches",
-				"pattern": scheduleBranch,
-			},
+			"selector": selector,
 		},
 		"cron_pattern": scheduleCron,
 	}

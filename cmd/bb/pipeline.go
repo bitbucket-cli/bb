@@ -14,8 +14,10 @@ import (
 )
 
 var (
-	pipelineBranch string
-	pipelineLimit  int
+	pipelineBranch    string
+	pipelineLimit     int
+	pipelinePattern   string
+	pipelineVariables []string
 )
 
 const (
@@ -87,6 +89,8 @@ func init() {
 	pipelineListCmd.Flags().IntVarP(&pipelineLimit, "limit", "l", defaultPipelineLimit, "Maximum number of pipelines to show (0 = all)")
 	pipelineTriggerCmd.Flags().StringVarP(&pipelineBranch, "branch", "b", "", "Branch to run pipeline on (required)")
 	pipelineTriggerCmd.MarkFlagRequired("branch")
+	pipelineTriggerCmd.Flags().StringVarP(&pipelinePattern, "pattern", "p", "", "Custom pipeline pattern name (bitbucket-pipelines.yml pipelines.custom.<pattern>); omit to run the branch's default pipeline")
+	pipelineTriggerCmd.Flags().StringArrayVarP(&pipelineVariables, "variable", "e", nil, "Pipeline variable as KEY=VALUE (repeatable)")
 
 	pipelineCmd.AddCommand(pipelineListCmd)
 	pipelineCmd.AddCommand(pipelineViewCmd)
@@ -311,12 +315,31 @@ func runPipelineTrigger(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build pipeline trigger request
+	target := map[string]interface{}{
+		"type":     "pipeline_ref_target",
+		"ref_type": "branch",
+		"ref_name": pipelineBranch,
+	}
+	if pipelinePattern != "" {
+		target["selector"] = map[string]interface{}{
+			"type":    "custom",
+			"pattern": pipelinePattern,
+		}
+	}
 	triggerRequest := map[string]interface{}{
-		"target": map[string]interface{}{
-			"type":     "pipeline_ref_target",
-			"ref_type": "branch",
-			"ref_name": pipelineBranch,
-		},
+		"target": target,
+	}
+
+	if len(pipelineVariables) > 0 {
+		variables := make([]map[string]string, 0, len(pipelineVariables))
+		for _, v := range pipelineVariables {
+			key, value, ok := strings.Cut(v, "=")
+			if !ok {
+				return fmt.Errorf("invalid --variable %q: expected KEY=VALUE", v)
+			}
+			variables = append(variables, map[string]string{"key": key, "value": value})
+		}
+		triggerRequest["variables"] = variables
 	}
 
 	body, err := json.Marshal(triggerRequest)
@@ -352,7 +375,11 @@ func runPipelineTrigger(cmd *cobra.Command, args []string) error {
 		buildNum = *pipeline.BuildNumber
 	}
 
-	output.Success("Triggered pipeline #%d on branch '%s'", buildNum, pipelineBranch)
+	if pipelinePattern != "" {
+		output.Success("Triggered pipeline #%d (pattern '%s') on branch '%s'", buildNum, pipelinePattern, pipelineBranch)
+	} else {
+		output.Success("Triggered pipeline #%d on branch '%s'", buildNum, pipelineBranch)
+	}
 
 	if pipeline.Uuid != nil {
 		output.Info("UUID: %s", *pipeline.Uuid)
