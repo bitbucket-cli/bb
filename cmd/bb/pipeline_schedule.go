@@ -131,7 +131,7 @@ func runPipelineScheduleList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	headers := []string{"UUID", "ENABLED", "CRON", "REF"}
+	headers := []string{"UUID", "ENABLED", "CRON", "REF", "PATTERN"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
 	for _, s := range schedules {
@@ -139,12 +139,18 @@ func runPipelineScheduleList(cmd *cobra.Command, args []string) error {
 		if s.Enabled {
 			enabled = "Yes"
 		}
-		rows = append(rows, []string{s.UUID, enabled, s.CronPattern, s.Target.RefName})
+		pattern := s.Target.Selector.Pattern
+		if pattern == "" {
+			pattern = "(default)"
+		}
+		rows = append(rows, []string{s.UUID, enabled, s.CronPattern, s.Target.RefName, pattern})
 		jsonData = append(jsonData, map[string]interface{}{
-			"uuid":         s.UUID,
-			"enabled":      s.Enabled,
-			"cron_pattern": s.CronPattern,
-			"ref_name":     s.Target.RefName,
+			"uuid":             s.UUID,
+			"enabled":          s.Enabled,
+			"cron_pattern":     s.CronPattern,
+			"ref_name":         s.Target.RefName,
+			"selector_type":    s.Target.Selector.Type,
+			"selector_pattern": s.Target.Selector.Pattern,
 		})
 	}
 	return output.Print(headers, rows, jsonData)
@@ -346,7 +352,11 @@ type pipelineSchedule struct {
 	Enabled     bool   `json:"enabled"`
 	CronPattern string `json:"cron_pattern"`
 	Target      struct {
-		RefName string `json:"ref_name"`
+		RefName  string `json:"ref_name"`
+		Selector struct {
+			Type    string `json:"type"`
+			Pattern string `json:"pattern"`
+		} `json:"selector"`
 	} `json:"target"`
 	CreatedOn string `json:"created_on"`
 }
