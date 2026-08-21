@@ -134,7 +134,7 @@ func init() {
 	prCreateCmd.Flags().StringVarP(&prBody, "body", "b", "", "Pull request description")
 	prCreateCmd.Flags().StringVarP(&prSource, "source", "s", "", "Source branch (defaults to the current git branch)")
 	prCreateCmd.Flags().StringVarP(&prDest, "dest", "d", "", "Destination branch (defaults to main branch)")
-	prCreateCmd.Flags().StringSliceVarP(&prReviewers, "reviewer", "r", nil, "Reviewers (can be specified multiple times)")
+	prCreateCmd.Flags().StringSliceVarP(&prReviewers, "reviewer", "r", nil, "Reviewers, by display name/nickname substring or {uuid} (can be specified multiple times)")
 	prCreateCmd.Flags().BoolP("interactive", "i", false, "Prompt for the title (and other fields) interactively")
 
 	prCommentCmd.Flags().StringVarP(&prComment, "body", "b", "", "Comment text (required)")
@@ -445,10 +445,16 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	for _, r := range prReviewers {
-		reviewers = append(reviewers, map[string]interface{}{
-			"username": r,
-		})
+	if len(prReviewers) > 0 {
+		refs, err := resolveWorkspaceMembers(ctx, client, repoCtx.Workspace, prReviewers)
+		if err != nil {
+			return err
+		}
+		for _, ref := range refs {
+			reviewers = append(reviewers, map[string]interface{}{
+				"uuid": ref.UUID,
+			})
+		}
 	}
 
 	if len(reviewers) > 0 {
