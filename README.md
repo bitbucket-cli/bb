@@ -524,8 +524,8 @@ bb pipeline logs myworkspace/myrepo 123 --step build-step-uuid
 # Create a tag for the release
 bb tag create myworkspace/myrepo v1.0.0 --target main
 
-# Trigger deployment pipeline
-bb pipeline trigger myworkspace/myrepo --tag v1.0.0
+# Run the deployment pipeline
+bb pipeline trigger myworkspace/myrepo --branch main --pattern deploy
 ```
 
 ## Troubleshooting
