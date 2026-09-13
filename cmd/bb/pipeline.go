@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -14,10 +16,11 @@ import (
 )
 
 var (
-	pipelineBranch    string
-	pipelineLimit     int
-	pipelinePattern   string
-	pipelineVariables []string
+	pipelineBranch      string
+	pipelineLimit       int
+	pipelinePattern     string
+	pipelinePullRequest int
+	pipelineVariables   []string
 )
 
 const (
@@ -56,9 +59,26 @@ var pipelineViewCmd = &cobra.Command{
 var pipelineTriggerCmd = &cobra.Command{
 	Use:   "trigger [workspace/repo]",
 	Short: "Trigger a pipeline",
-	Long:  `Trigger a new pipeline run on a branch.`,
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runPipelineTrigger,
+	Long: `Trigger a new pipeline run on a branch, or re-run a pull request's pipeline.
+
+With --pull-request, this runs the repository's pull-requests pipeline for that
+PR, exactly as opening or updating the PR would. That is the only way to clear a
+"No failed builds on last commit" merge check without pushing a new commit --
+and pushing one can reset existing approvals.
+
+Note that --branch with a pull-requests pipeline is NOT equivalent: it runs the
+same YAML but as a branch trigger, so Bitbucket does not set BITBUCKET_PR_ID and
+any step that needs it fails.`,
+	Example: `  # Re-run the pipeline for PR 197 after a transient failure
+  bb pipeline trigger --pull-request 197
+
+  # Run a branch's default pipeline
+  bb pipeline trigger --branch main
+
+  # Run a custom pipeline with a variable
+  bb pipeline trigger --branch main --pattern deploy -e ENVIRONMENT=staging`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runPipelineTrigger,
 }
 
 var pipelineStopCmd = &cobra.Command{
@@ -87,9 +107,11 @@ var pipelineLogsCmd = &cobra.Command{
 
 func init() {
 	pipelineListCmd.Flags().IntVarP(&pipelineLimit, "limit", "l", defaultPipelineLimit, "Maximum number of pipelines to show (0 = all)")
-	pipelineTriggerCmd.Flags().StringVarP(&pipelineBranch, "branch", "b", "", "Branch to run pipeline on (required)")
-	pipelineTriggerCmd.MarkFlagRequired("branch")
-	pipelineTriggerCmd.Flags().StringVarP(&pipelinePattern, "pattern", "p", "", "Custom pipeline pattern name (bitbucket-pipelines.yml pipelines.custom.<pattern>); omit to run the branch's default pipeline")
+	pipelineTriggerCmd.Flags().StringVarP(&pipelineBranch, "branch", "b", "", "Branch to run pipeline on (required unless --pull-request is given)")
+	pipelineTriggerCmd.Flags().IntVarP(&pipelinePullRequest, "pull-request", "P", 0, "Pull request id to run the pull-requests pipeline for (re-runs its checks)")
+	pipelineTriggerCmd.MarkFlagsMutuallyExclusive("branch", "pull-request")
+	pipelineTriggerCmd.MarkFlagsOneRequired("branch", "pull-request")
+	pipelineTriggerCmd.Flags().StringVarP(&pipelinePattern, "pattern", "p", "", "Custom pipeline pattern name (bitbucket-pipelines.yml pipelines.custom.<pattern>); omit to run the branch's default pipeline. Not valid with --pull-request: Bitbucket cannot run custom pipelines for a pull request")
 	pipelineTriggerCmd.Flags().StringArrayVarP(&pipelineVariables, "variable", "e", nil, "Pipeline variable as KEY=VALUE (repeatable)")
 
 	pipelineCmd.AddCommand(pipelineListCmd)
@@ -315,15 +337,26 @@ func runPipelineTrigger(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build pipeline trigger request
-	target := map[string]interface{}{
-		"type":     "pipeline_ref_target",
-		"ref_type": "branch",
-		"ref_name": pipelineBranch,
-	}
-	if pipelinePattern != "" {
-		target["selector"] = map[string]interface{}{
-			"type":    "custom",
-			"pattern": pipelinePattern,
+	var target map[string]interface{}
+	if pipelinePullRequest > 0 {
+		if pipelinePattern != "" {
+			return fmt.Errorf("--pattern cannot be used with --pull-request: Bitbucket does not support running custom pipelines for a pull request")
+		}
+		target, err = pipelinePullRequestTarget(ctx, client, repoCtx, pipelinePullRequest)
+		if err != nil {
+			return err
+		}
+	} else {
+		target = map[string]interface{}{
+			"type":     "pipeline_ref_target",
+			"ref_type": "branch",
+			"ref_name": pipelineBranch,
+		}
+		if pipelinePattern != "" {
+			target["selector"] = map[string]interface{}{
+				"type":    "custom",
+				"pattern": pipelinePattern,
+			}
 		}
 	}
 	triggerRequest := map[string]interface{}{
@@ -347,13 +380,31 @@ func runPipelineTrigger(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create request body: %w", err)
 	}
 
-	resp, err := client.CreatePipelineForRepositoryWithBody(
-		ctx,
-		repoCtx.Workspace,
-		repoCtx.RepoSlug,
-		"application/json",
-		bytesReader(body),
-	)
+	var resp *http.Response
+	if pipelinePullRequest > 0 {
+		// Deliberately not the generated client. Its operation path is
+		// /repositories/{ws}/{repo}/pipelines with no trailing slash (as the
+		// OpenAPI spec declares), and Bitbucket accepts a
+		// pipeline_pullrequest_target ONLY on /pipelines/ -- without the slash it
+		// answers 400 "The request body contains invalid properties", which reads
+		// as a malformed body and is not one. Branch targets work on either, which
+		// is why this quirk stays hidden until you try a pull request.
+		resp, err = client.RequestRaw(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/repositories/%s/%s/pipelines/", repoCtx.Workspace, repoCtx.RepoSlug),
+			"application/json",
+			bytesReader(body),
+		)
+	} else {
+		resp, err = client.CreatePipelineForRepositoryWithBody(
+			ctx,
+			repoCtx.Workspace,
+			repoCtx.RepoSlug,
+			"application/json",
+			bytesReader(body),
+		)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to trigger pipeline: %w", err)
 	}
@@ -625,4 +676,79 @@ func runPipelineLogs(cmd *cobra.Command, args []string) error {
 
 	fmt.Print(buf.String())
 	return nil
+}
+
+// pipelinePullRequestTarget builds the target for a pull-requests pipeline run.
+//
+// Bitbucket needs the PR's source and destination branches and both commit
+// hashes, not just the id, so this reads the PR first. The id is sent as a
+// string: the API rejects an integer here even though it returns one.
+func pipelinePullRequestTarget(
+	ctx context.Context,
+	client *api.Client,
+	repoCtx *api.RepoContext,
+	prID int,
+) (map[string]interface{}, error) {
+	resp, err := client.Request(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("/repositories/%s/%s/pullrequests/%d", repoCtx.Workspace, repoCtx.RepoSlug, prID),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up pull request %d: %w", prID, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to look up pull request %d: %s", prID, resp.Status)
+	}
+
+	var pr struct {
+		State  string `json:"state"`
+		Source struct {
+			Branch struct {
+				Name string `json:"name"`
+			} `json:"branch"`
+			Commit struct {
+				Hash string `json:"hash"`
+			} `json:"commit"`
+		} `json:"source"`
+		Destination struct {
+			Branch struct {
+				Name string `json:"name"`
+			} `json:"branch"`
+			Commit struct {
+				Hash string `json:"hash"`
+			} `json:"commit"`
+		} `json:"destination"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+		return nil, fmt.Errorf("failed to parse pull request %d: %w", prID, err)
+	}
+
+	if pr.Source.Branch.Name == "" || pr.Source.Commit.Hash == "" {
+		return nil, fmt.Errorf("pull request %d has no source branch or commit to run against", prID)
+	}
+	// A merged or declined PR has nothing to re-run, and Bitbucket's error for it
+	// is not obvious.
+	if pr.State != "" && pr.State != "OPEN" {
+		return nil, fmt.Errorf("pull request %d is %s; only an open pull request can run a pipeline", prID, pr.State)
+	}
+
+	target := map[string]interface{}{
+		"type":        "pipeline_pullrequest_target",
+		"source":      pr.Source.Branch.Name,
+		"destination": pr.Destination.Branch.Name,
+		"commit":      map[string]interface{}{"type": "commit", "hash": pr.Source.Commit.Hash},
+		"pullrequest": map[string]interface{}{"type": "pullrequest", "id": strconv.Itoa(prID)},
+		"selector":    map[string]interface{}{"type": "pull-requests", "pattern": "**"},
+	}
+	if pr.Destination.Commit.Hash != "" {
+		target["destination_commit"] = map[string]interface{}{
+			"type": "commit",
+			"hash": pr.Destination.Commit.Hash,
+		}
+	}
+	return target, nil
 }

@@ -236,8 +236,11 @@ bb pipeline view myworkspace/myrepo 123
 
 # Trigger a pipeline
 bb pipeline trigger myworkspace/myrepo --branch main
-bb pipeline trigger myworkspace/myrepo --tag v1.0.0
-bb pipeline trigger myworkspace/myrepo --commit abc123
+bb pipeline trigger myworkspace/myrepo --branch main --pattern deploy -e ENVIRONMENT=staging
+
+# Re-run a pull request's pipeline (clears a "No failed builds on last commit"
+# merge check without pushing a commit, which can reset approvals)
+bb pipeline trigger myworkspace/myrepo --pull-request 197
 
 # Stop a running pipeline
 bb pipeline stop myworkspace/myrepo 123

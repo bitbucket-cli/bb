@@ -984,3 +984,116 @@ func TestRunPipelineLogs_WithBraces(t *testing.T) {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }
+
+// --- pull-request trigger -----------------------------------------------------
+
+// Bitbucket accepts a pipeline_pullrequest_target ONLY on the trailing-slash
+// path. Without it, it answers 400 "The request body contains invalid
+// properties", which reads as a malformed body and is not one. Branch targets
+// work on either path, so the quirk stays hidden until a PR trigger is tried -
+// which is exactly why it is pinned here.
+func TestRunPipelineTrigger_PullRequestUsesTrailingSlashPath(t *testing.T) {
+	defer resetPipelineMocks()
+	defer resetPipelineTriggerFlags()
+
+	var triggerPath string
+	var triggerBody map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/pullrequests/") {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"state": "OPEN",
+				"source": map[string]interface{}{
+					"branch": map[string]string{"name": "feat/thing"},
+					"commit": map[string]string{"hash": "abc123"},
+				},
+				"destination": map[string]interface{}{
+					"branch": map[string]string{"name": "main"},
+					"commit": map[string]string{"hash": "def456"},
+				},
+			})
+			return
+		}
+		triggerPath = r.URL.Path
+		json.NewDecoder(r.Body).Decode(&triggerBody)
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{"build_number": 42})
+	}))
+	defer server.Close()
+
+	pipelineNewAPIClient = mockAPIClientFactory(server)
+	pipelinePullRequest = 197
+
+	if err := runPipelineTrigger(pipelineTriggerCmd, []string{"workspace/repo"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.HasSuffix(triggerPath, "/pipelines/") {
+		t.Errorf("expected the trailing-slash pipelines path, got %q", triggerPath)
+	}
+
+	target, _ := triggerBody["target"].(map[string]interface{})
+	if target["type"] != "pipeline_pullrequest_target" {
+		t.Errorf("expected pipeline_pullrequest_target, got %v", target["type"])
+	}
+	// A branch target would run the same YAML but leave BITBUCKET_PR_ID unset,
+	// failing any step that needs it.
+	if target["source"] != "feat/thing" || target["destination"] != "main" {
+		t.Errorf("source/destination not taken from the PR: %v / %v", target["source"], target["destination"])
+	}
+	pr, _ := target["pullrequest"].(map[string]interface{})
+	// The API returns an integer id but rejects one here.
+	if pr["id"] != "197" {
+		t.Errorf("expected the PR id as the string \"197\", got %#v", pr["id"])
+	}
+}
+
+func TestRunPipelineTrigger_PullRequestRejectsPattern(t *testing.T) {
+	defer resetPipelineMocks()
+	defer resetPipelineTriggerFlags()
+
+	pipelineNewAPIClient = func() (*api.Client, error) { return &api.Client{}, nil }
+	pipelinePullRequest = 197
+	pipelinePattern = "deploy"
+
+	err := runPipelineTrigger(pipelineTriggerCmd, []string{"workspace/repo"})
+	if err == nil {
+		t.Fatal("expected an error: Bitbucket cannot run custom pipelines for a pull request")
+	}
+	if !strings.Contains(err.Error(), "custom pipelines") {
+		t.Errorf("error should explain why, got: %v", err)
+	}
+}
+
+// A merged or declined PR has nothing to re-run, and Bitbucket's own error for
+// it is not obvious.
+func TestRunPipelineTrigger_PullRequestNotOpen(t *testing.T) {
+	defer resetPipelineMocks()
+	defer resetPipelineTriggerFlags()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"state": "MERGED",
+			"source": map[string]interface{}{
+				"branch": map[string]string{"name": "feat/thing"},
+				"commit": map[string]string{"hash": "abc123"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	pipelineNewAPIClient = mockAPIClientFactory(server)
+	pipelinePullRequest = 197
+
+	err := runPipelineTrigger(pipelineTriggerCmd, []string{"workspace/repo"})
+	if err == nil || !strings.Contains(err.Error(), "MERGED") {
+		t.Errorf("expected an error naming the PR state, got: %v", err)
+	}
+}
+
+func resetPipelineTriggerFlags() {
+	pipelineBranch = ""
+	pipelinePattern = ""
+	pipelinePullRequest = 0
+	pipelineVariables = nil
+}
