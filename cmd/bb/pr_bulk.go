@@ -32,12 +32,22 @@ var prBulkDeclineCmd = &cobra.Command{
 
 var prBulkMergeCmd = &cobra.Command{
 	Use:   "merge <workspace/repo> <pr-number...>",
-	Short: "Merge multiple pull requests (default merge strategy)",
-	Args:  cobra.MinimumNArgs(1),
-	RunE:  func(cmd *cobra.Command, args []string) error { return runPRBulk(cmd, args, "merge") },
+	Short: "Merge multiple pull requests",
+	Long: `Merge several pull requests, one API call each, run concurrently.
+
+Without --strategy each PR is merged with the repository's default strategy.`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error { return runPRBulk(cmd, args, "merge") },
 }
 
+var (
+	prBulkMergeStrategy    string
+	prBulkMergeCloseSource bool
+)
+
 func init() {
+	prBulkMergeCmd.Flags().StringVar(&prBulkMergeStrategy, "strategy", "", "Merge strategy: merge_commit, squash, fast_forward, squash_fast_forward, rebase_fast_forward, rebase_merge (default: the repo's default)")
+	prBulkMergeCmd.Flags().BoolVar(&prBulkMergeCloseSource, "close-source-branch", false, "Delete each source branch after merging (use =false to keep them; default: each PR's setting)")
 	prBulkCmd.AddCommand(prBulkApproveCmd)
 	prBulkCmd.AddCommand(prBulkDeclineCmd)
 	prBulkCmd.AddCommand(prBulkMergeCmd)
@@ -59,6 +69,21 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 		return fmt.Errorf("no pull request numbers given; usage: bb pr bulk %s [workspace/repo] <pr-number...>", action)
 	}
 
+	// Built once and shared: every PR is merged with the same parameters.
+	mergeBody := generated.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMergeJSONRequestBody{}
+	if action == "merge" {
+		if prBulkMergeStrategy != "" {
+			strategy, err := parseMergeStrategy(prBulkMergeStrategy)
+			if err != nil {
+				return err
+			}
+			mergeBody.MergeStrategy = &strategy
+		}
+		if cmd.Flags().Changed("close-source-branch") {
+			mergeBody.CloseSourceBranch = &prBulkMergeCloseSource
+		}
+	}
+
 	// Independent calls — run them concurrently.
 	errs := runConcurrent(ids, 8, func(idStr string) error {
 		id, err := strconv.Atoi(idStr)
@@ -73,7 +98,7 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 		case "decline":
 			resp, err = client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdDecline(ctx, repoCtx.Workspace, repoCtx.RepoSlug, id)
 		case "merge":
-			resp, err = client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMerge(ctx, repoCtx.Workspace, repoCtx.RepoSlug, id, nil, generated.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMergeJSONRequestBody{})
+			resp, err = client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMerge(ctx, repoCtx.Workspace, repoCtx.RepoSlug, id, nil, mergeBody)
 		default:
 			return fmt.Errorf("unknown action %q", action)
 		}

@@ -15,6 +15,10 @@ var (
 	prEditBody            string
 	prEditAddReviewers    []string
 	prEditRemoveReviewers []string
+	prEditDest            string
+	prEditDraft           bool
+	prEditReady           bool
+	prEditCloseSource     bool
 	prTaskBody            string
 )
 
@@ -22,9 +26,15 @@ var (
 
 var prEditCmd = &cobra.Command{
 	Use:   "edit [workspace/repo] [pr-number]",
-	Short: "Edit a pull request's title/description/reviewers",
-	Args:  cobra.RangeArgs(0, 2),
-	RunE:  runPREdit,
+	Short: "Edit a pull request's title, description, destination, reviewers or draft state",
+	Long: `Edit an open pull request. Only the fields you pass are changed.
+
+Examples:
+  bb pr edit 42 --dest develop          # retarget to another branch
+  bb pr edit 42 --ready                 # take a draft out of draft
+  bb pr edit 42 --close-source-branch   # delete the source branch on merge`,
+	Args: cobra.RangeArgs(0, 2),
+	RunE: runPREdit,
 }
 
 func runPREdit(cmd *cobra.Command, args []string) error {
@@ -69,6 +79,20 @@ func runPREdit(cmd *cobra.Command, args []string) error {
 	}
 
 	body := map[string]interface{}{"title": title, "description": desc}
+	if prEditDest != "" {
+		body["destination"] = map[string]interface{}{
+			"branch": map[string]interface{}{"name": prEditDest},
+		}
+	}
+	if prEditDraft {
+		body["draft"] = true
+	}
+	if prEditReady {
+		body["draft"] = false
+	}
+	if cmd.Flags().Changed("close-source-branch") {
+		body["close_source_branch"] = prEditCloseSource
+	}
 
 	if len(prEditAddReviewers) > 0 || len(prEditRemoveReviewers) > 0 {
 		reviewers := make([]reviewerRef, len(cur.Reviewers))
@@ -326,6 +350,11 @@ func init() {
 	prEditCmd.Flags().BoolP("interactive", "i", false, "Select PR interactively")
 	prEditCmd.Flags().StringSliceVar(&prEditAddReviewers, "add-reviewer", nil, "Add a reviewer, by display name/nickname substring or {uuid} (can be specified multiple times)")
 	prEditCmd.Flags().StringSliceVar(&prEditRemoveReviewers, "remove-reviewer", nil, "Remove a reviewer, by display name substring (can be specified multiple times)")
+	prEditCmd.Flags().StringVarP(&prEditDest, "dest", "d", "", "New destination branch")
+	prEditCmd.Flags().BoolVar(&prEditDraft, "draft", false, "Convert the pull request to a draft")
+	prEditCmd.Flags().BoolVar(&prEditReady, "ready", false, "Mark a draft pull request as ready for review")
+	prEditCmd.Flags().BoolVar(&prEditCloseSource, "close-source-branch", false, "Delete the source branch when merged (use =false to keep it)")
+	prEditCmd.MarkFlagsMutuallyExclusive("draft", "ready")
 	prTasksAddCmd.Flags().StringVarP(&prTaskBody, "body", "b", "", "Task text (required)")
 	prTasksAddCmd.MarkFlagRequired("body")
 	prTasksCmd.AddCommand(prTasksListCmd, prTasksAddCmd, prTasksDoneCmd)

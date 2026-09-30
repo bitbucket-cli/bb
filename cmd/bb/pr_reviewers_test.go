@@ -211,3 +211,51 @@ func TestRunPREdit_RemoveReviewer(t *testing.T) {
 		t.Errorf("remaining reviewer = %v, want {nathan-uuid}", reviewers[0])
 	}
 }
+
+func TestRunPREdit_DestDraftCloseSource(t *testing.T) {
+	defer func() {
+		prNewAPIClient = api.NewClient
+		prEditDest = ""
+		prEditReady = false
+		prEditCmd.Flags().Set("close-source-branch", "false")
+		prEditCmd.Flags().Lookup("close-source-branch").Changed = false
+	}()
+
+	var putBody map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			json.NewEncoder(w).Encode(map[string]interface{}{"title": "t", "description": "d"})
+		case http.MethodPut:
+			json.NewDecoder(r.Body).Decode(&putBody)
+			w.Write([]byte(`{}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+	prEditDest = "develop"
+	prEditReady = true
+	prEditCmd.Flags().Set("close-source-branch", "true")
+
+	if err := runPREdit(prEditCmd, []string{"myws/myrepo", "5"}); err != nil {
+		t.Fatalf("runPREdit: %v", err)
+	}
+
+	dest, _ := putBody["destination"].(map[string]interface{})
+	branch, _ := dest["branch"].(map[string]interface{})
+	if branch["name"] != "develop" {
+		t.Errorf("destination = %v, want branch develop", putBody["destination"])
+	}
+	if putBody["draft"] != false {
+		t.Errorf("draft = %v, want false", putBody["draft"])
+	}
+	if putBody["close_source_branch"] != true {
+		t.Errorf("close_source_branch = %v, want true", putBody["close_source_branch"])
+	}
+	if _, ok := putBody["reviewers"]; ok {
+		t.Errorf("reviewers sent although not edited: %v", putBody["reviewers"])
+	}
+}

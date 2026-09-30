@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ThomasRedstone/bb/generated/bitbucket"
 	"github.com/ThomasRedstone/bb/internal/interactive"
@@ -25,6 +27,13 @@ var (
 	prComment     string
 	prCommentPath string
 	prCommentLine int
+
+	prDraft            bool
+	prCloseSource      bool
+	prMergeStrategy    string
+	prMergeMessage     string
+	prMergeCloseSource bool
+	prApproveRemove    bool
 )
 
 // Mockable dependencies for testing
@@ -69,6 +78,8 @@ var prMergeCmd = &cobra.Command{
 	Short: "Merge a pull request",
 	Long: `Merge an open pull request.
 
+Without --strategy the repository's default merge strategy is used.
+
 Use -i flag for interactive selection when pr-number is omitted.`,
 	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRMerge,
@@ -77,7 +88,7 @@ Use -i flag for interactive selection when pr-number is omitted.`,
 var prApproveCmd = &cobra.Command{
 	Use:   "approve [workspace/repo] [pr-number]",
 	Short: "Approve a pull request",
-	Long: `Add your approval to a pull request.
+	Long: `Add your approval to a pull request, or withdraw it with --remove.
 
 Use -i flag for interactive selection when pr-number is omitted.`,
 	Args: cobra.RangeArgs(0, 2),
@@ -136,6 +147,12 @@ func init() {
 	prCreateCmd.Flags().StringVarP(&prDest, "dest", "d", "", "Destination branch (defaults to main branch)")
 	prCreateCmd.Flags().StringSliceVarP(&prReviewers, "reviewer", "r", nil, "Reviewers, by display name/nickname substring or {uuid} (can be specified multiple times)")
 	prCreateCmd.Flags().BoolP("interactive", "i", false, "Prompt for the title (and other fields) interactively")
+	prCreateCmd.Flags().BoolVar(&prDraft, "draft", false, "Create the pull request as a draft")
+	prCreateCmd.Flags().BoolVar(&prCloseSource, "close-source-branch", false, "Delete the source branch when the pull request is merged")
+	prMergeCmd.Flags().StringVar(&prMergeStrategy, "strategy", "", "Merge strategy: merge_commit, squash, fast_forward, squash_fast_forward, rebase_fast_forward, rebase_merge (default: the repo's default)")
+	prMergeCmd.Flags().StringVarP(&prMergeMessage, "message", "m", "", "Commit message for the merge commit")
+	prMergeCmd.Flags().BoolVar(&prMergeCloseSource, "close-source-branch", false, "Delete the source branch after merging (use =false to keep it; default: the PR's setting)")
+	prApproveCmd.Flags().BoolVar(&prApproveRemove, "remove", false, "Withdraw your approval")
 
 	prCommentCmd.Flags().StringVarP(&prComment, "body", "b", "", "Comment text (required)")
 	prCommentCmd.Flags().StringVar(&prCommentPath, "path", "", "File path for an inline comment")
@@ -399,6 +416,12 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 	if prBody != "" {
 		prRequest["description"] = prBody
 	}
+	if prDraft {
+		prRequest["draft"] = true
+	}
+	if prCloseSource {
+		prRequest["close_source_branch"] = true
+	}
 
 	// Bitbucket's create-pull-request API does not auto-apply the repo's
 	// default reviewers (that only happens via the web UI), so fetch and
@@ -526,14 +549,30 @@ func runPRMerge(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Use nil params and empty body for default merge behavior
+	// Unset fields fall back to the repo's default strategy and the
+	// PR's own close_source_branch setting.
+	mergeBody := bitbucket.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMergeJSONRequestBody{}
+	if prMergeStrategy != "" {
+		strategy, err := parseMergeStrategy(prMergeStrategy)
+		if err != nil {
+			return err
+		}
+		mergeBody.MergeStrategy = &strategy
+	}
+	if prMergeMessage != "" {
+		mergeBody.Message = &prMergeMessage
+	}
+	if cmd.Flags().Changed("close-source-branch") {
+		mergeBody.CloseSourceBranch = &prMergeCloseSource
+	}
+
 	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMerge(
 		ctx,
 		repoCtx.Workspace,
 		repoCtx.RepoSlug,
 		prID,
 		nil,
-		bitbucket.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMergeJSONRequestBody{},
+		mergeBody,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to merge pull request: %w", err)
@@ -548,6 +587,28 @@ func runPRMerge(cmd *cobra.Command, args []string) error {
 
 	output.Success("Merged pull request #%d", prID)
 	return nil
+}
+
+var mergeStrategies = []bitbucket.PullrequestMergeParametersMergeStrategy{
+	bitbucket.MergeCommit,
+	bitbucket.Squash,
+	bitbucket.FastForward,
+	bitbucket.SquashFastForward,
+	bitbucket.RebaseFastForward,
+	bitbucket.RebaseMerge,
+}
+
+// parseMergeStrategy validates s against the strategies the API accepts,
+// so a typo fails locally rather than as an opaque 400.
+func parseMergeStrategy(s string) (bitbucket.PullrequestMergeParametersMergeStrategy, error) {
+	names := make([]string, len(mergeStrategies))
+	for i, m := range mergeStrategies {
+		if string(m) == s {
+			return m, nil
+		}
+		names[i] = string(m)
+	}
+	return "", fmt.Errorf("unknown merge strategy %q (valid: %s)", s, strings.Join(names, ", "))
 }
 
 func runPRApprove(cmd *cobra.Command, args []string) error {
@@ -569,24 +630,28 @@ func runPRApprove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	resp, err := client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdApprove(
-		ctx,
-		repoCtx.Workspace,
-		repoCtx.RepoSlug,
-		prID,
-	)
+	var resp *http.Response
+	if prApproveRemove {
+		resp, err = client.DeleteRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdApprove(ctx, repoCtx.Workspace, repoCtx.RepoSlug, prID)
+	} else {
+		resp, err = client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdApprove(ctx, repoCtx.Workspace, repoCtx.RepoSlug, prID)
+	}
 	if err != nil {
-		return fmt.Errorf("failed to approve pull request: %w", err)
+		return fmt.Errorf("failed to update approval: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
 		var errResp map[string]interface{}
 		json.NewDecoder(resp.Body).Decode(&errResp)
 		return fmt.Errorf("API error: %s - %v", resp.Status, errResp)
 	}
 
-	output.Success("Approved pull request #%d", prID)
+	if prApproveRemove {
+		output.Success("Withdrew approval of pull request #%d", prID)
+	} else {
+		output.Success("Approved pull request #%d", prID)
+	}
 	return nil
 }
 

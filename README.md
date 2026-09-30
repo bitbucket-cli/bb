@@ -181,11 +181,22 @@ bb pr create myworkspace/myrepo \
   --body "Description of changes" \
   --reviewer johndoe
 
+# Create a draft that deletes its source branch on merge
+bb pr create --title "WIP" --draft --close-source-branch
+
+# Retarget a PR, or take it out of draft
+bb pr edit myworkspace/myrepo 123 --dest develop
+bb pr edit myworkspace/myrepo 123 --ready
+
 # Merge a pull request
 bb pr merge myworkspace/myrepo 123
 
-# Approve a pull request
+# Squash-merge with a custom message and delete the source branch
+bb pr merge myworkspace/myrepo 123 --strategy squash -m "Add feature" --close-source-branch
+
+# Approve a pull request (or withdraw your approval)
 bb pr approve myworkspace/myrepo 123
+bb pr approve myworkspace/myrepo 123 --remove
 
 # Decline a pull request
 bb pr decline myworkspace/myrepo 123
