@@ -88,7 +88,8 @@ func generate() error {
 			return err
 		}
 	}
-	return os.WriteFile("THIRD_PARTY_LICENSES.txt", out.Bytes(), 0644)
+	content := append(bytes.TrimRight(out.Bytes(), "\r\n"), '\n')
+	return os.WriteFile("THIRD_PARTY_LICENSES.txt", content, 0644)
 }
 
 func appendFiles(out *bytes.Buffer, label, root string, recursive bool) error {
