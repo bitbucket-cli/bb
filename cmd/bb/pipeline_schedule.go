@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	generated "github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/output"
+	generated "github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -126,7 +126,7 @@ func runPipelineScheduleList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(schedules) == 0 {
+	if len(schedules) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No schedules found")
 		return nil
 	}
@@ -238,7 +238,7 @@ func runPipelineScheduleView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, s)
 	}
 	fmt.Printf("UUID:    %s\n", s.UUID)
@@ -300,7 +300,7 @@ func runPipelineCacheList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(caches) == 0 {
+	if len(caches) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No caches found")
 		return nil
 	}

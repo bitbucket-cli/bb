@@ -5,12 +5,12 @@ This document outlines planned features and improvements for the Bitbucket CLI (
 ## Current Status
 
 The CLI currently supports:
-- **Authentication**: OAuth login/logout (selectable scope levels) with secure token storage; API-token fallback
+- **Authentication**: OAuth login/logout (selectable scope levels); keyring/file token storage choices; API-token fallback
 - **Repositories**: List, view, clone, create, update, fork, delete
 - **Pull Requests**: List (incl. `--all` cross-repo, per-user), view, create (source defaults to current branch), merge, approve, request-changes, decline, comment (incl. inline), diff, checkout, **checks** (build/CI statuses)
 - **Branches**: List, view, create, delete, restrictions
 - **Commits**: List (by branch/ref), view, activity, **status** (build/CI), **report** (Code Insights)
-- **Pipelines**: List, view, trigger, stop, steps, logs, analytics; schedules (list/view/delete); caches (list/delete); variables (list/set/delete)
+- **Pipelines**: List, view, trigger, stop, steps, logs, analytics; schedules (list/create/view/delete); caches (list/delete); variables (list/set/delete)
 - **Issues**: List, view, create, update, delete, comments, milestones/versions/components, bulk
 - **Tags**: List, view, create, delete
 - **Webhooks**: List, view, create, delete (repo **and workspace** level)
@@ -54,22 +54,25 @@ generated client (384 methods) leaves the following, grouped by usefulness:
 
 ## Open-Source Release Blockers
 
-These must be resolved before a public release. See `review.md` for full details.
+The resolved issues below describe release preparation. The next release is the
+`v0.3.0-rc.1` public preview; it is not yet a stable release. Release validation,
+third-party notices and the API specification provenance decision are documented
+in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Bugs (fix before release)
 
 - [x] **Double body injection** — `repo.go` and `branch.go`: removed redundant `withBody` editor; body is now only set via the positional `io.Reader` arg.
-- [x] **`DeleteTokens` calls `deleteTokenFile()` twice** — fixed; both keyring and file deletions now always run, errors ignored (both stores may legitimately be absent).
+- [x] **`DeleteTokens` calls `deleteTokenFile()` twice** — fixed; both stores are attempted, absent entries are tolerated, and other failures are reported.
 - [x] **`pkg/pr/pr.go` only returns the first page** — `pr.List` now follows `result.Next` pagination links.
 - [x] **`branch list`, `pipeline list`, `pr list` missing pagination** — all three now paginate fully; `pipeline list` also has a `--limit` flag (default 25).
 - [x] **Hash slice panic** — `branch.go`: now uses `h[:min(12, len(h))]`.
-- [x] **Token refresh body reset** — `api/client.go`: body is snapshotted before the first attempt and restored on 401 retry.
+- [x] **Token refresh body reset** — `pkg/bitbucket/client.go`: body is snapshotted before the first attempt and restored on 401 retry.
 
 ### Documentation mismatches (fix before release)
 
 - [x] **`bb auth login --client-id / --client-secret` flags** — flags now exist; README updated with shell-history warning.
 - [x] **`BB_DEBUG=1` documented but not implemented** — removed from README.
-- [x] **Module path** — updated to `github.com/ThomasRedstone/bb` across all files in both repos.
+- [x] **Module path** — updated to `github.com/bitbucket-cli/bb` across this repository.
 
 ### Architecture (fix before release)
 
@@ -80,8 +83,8 @@ These must be resolved before a public release. See `review.md` for full details
 
 - [x] **Propagate `cmd.Context()`** — all RunE functions now use `cmdCtx(cmd)` (a helper with nil fallback for tests) instead of `context.Background()`.
 - [x] **`prInteractive` global variable shared across PR subcommands** — removed; each command reads `cmd.Flags().GetBool("interactive")` inside RunE.
-- [x] **`fetchPage` in `repo.go` brittle triple-dereference** — replaced with `client.GetURL()` helper on `api.Client`.
-- [x] **`client_secret` stored in plaintext** — security note added to README pointing users to `bb auth login` and env vars instead.
+- [x] **`fetchPage` in `repo.go` brittle triple-dereference** — replaced with `client.GetURL()` helper on `pkg/bitbucket.Client`.
+- [x] **`client_secret` stored in plaintext** — security note documents plaintext credential persistence and points users to environment variables or external credential commands.
 - [x] **Unicode symbols in `output.Success`/`output.Error`** — `✓`/`✗` now fall back to `OK`/`ERROR` when stdout is not a terminal.
 
 ---
@@ -115,7 +118,7 @@ These must be resolved before a public release. See `review.md` for full details
 - [x] PR templates support — `bb pr create` defaults the description from `.bitbucket/`, root, `.github/`, or `docs/` `pull_request_template.md`
 
 #### Repository Management
-- [~] Repository settings management — read views added: `bb repo branching-model`, `bb repo permissions [--groups]`, `bb repo forks` (write/update still pending)
+- [~] Repository settings management — `bb repo update`, user/group permission writes, branching-model development/production branch updates and fork views are implemented; repository override settings remain pending
 - [x] Access keys (SSH keys) management — `bb deploy-key list/add/view/delete`
 - [x] Repository variables for pipelines — `bb variable list/set/delete`
 - [~] Branch merge strategies configuration — not feasible: no merge-strategy/pullrequest-settings endpoint in the generated API spec
@@ -153,7 +156,7 @@ These must be resolved before a public release. See `review.md` for full details
 ## Technical Improvements
 
 ### Testing
-- [~] Increase test coverage to 90%+ — ongoing: config/output/auth 90%+, cmd/bb ~80%; every command has httptest coverage
+- [~] Increase test coverage to 90%+ — ongoing: enforced package ratchets are CLI 65%, auth 77%, config 90%, output 91%; interactive prompt helpers currently have no direct coverage and remain in the overall coverage total
 - [x] Add integration tests with mock API server — full cobra Execute path against httptest (integration_test.go), plus per-command httptest tests
 - [~] End-to-end tests — cobra-Execute integration tests added (integration_test.go); live e2e vs the real API needs credentials, out of CI scope
 
@@ -166,14 +169,14 @@ These must be resolved before a public release. See `review.md` for full details
 ### Build and Distribution
 - [x] GitHub Actions CI/CD pipeline (ci.yml + release.yml + .goreleaser.yaml)
 - [x] Cross-platform binaries (Linux, macOS, Windows) — goreleaser builds amd64+arm64
-- [x] Homebrew formula — goreleaser publishes to ThomasRedstone/homebrew-tap
+- [x] Homebrew formula — verified archive checksums feed a separate formula generator and tap job for `bitbucket-cli/homebrew-tap`; macOS/Linux amd64 and arm64 are supported
 - [x] APT/RPM packages — goreleaser nfpms (deb/rpm)
-- [x] Scoop manifest for Windows — goreleaser scoops (needs a scoop-bucket repo + token, like the Homebrew tap)
+- [ ] Scoop manifest for Windows — disabled until a scoop-bucket repository and publishing token are configured; Windows release binaries remain available
 
 ### Performance
 - [~] Response caching — not applicable: bb is a stateless single-shot CLI; superseded by on-demand pagination + --limit
 - [x] Concurrent API requests where applicable — bulk PR/issue ops run with bounded concurrency (`runConcurrent`)
-- [x] Lazy loading for large result sets — list commands paginate on demand and stop at `--limit`
+- [~] Limit-aware pagination — pipeline listing stops at `--limit`; other paginated list commands currently retrieve all pages
 
 ### Code Quality
 - [x] Golangci-lint integration — `.golangci.yml` (v2) + CI lint job
@@ -187,7 +190,16 @@ Contributions are welcome! Please feel free to submit issues or pull requests fo
 
 ## Version History
 
-### v0.1.0 (Current)
+### v0.3.0-rc.1 (Public preview in preparation)
+- Authentication and API request handling hardened
+- Consistent output, argument validation and repository context
+- Patched build toolchain, release validation and dependency notices
+- Reproducible API client generation and a macOS/Linux Homebrew formula publisher
+
+### Earlier private releases
+- `v0.2.0`, `v0.1.1` and `v0.1.0` precede the public preview
+
+### v0.1.0 (Initial private release)
 - Initial release with core functionality
 - Authentication, repositories, PRs, branches, pipelines, issues
 - Tags, webhooks, deployments, workspaces

@@ -8,8 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -122,7 +122,7 @@ func runWebhookList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(webhooks) == 0 {
+	if len(webhooks) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No webhooks found")
 		return nil
 	}
@@ -283,7 +283,7 @@ func runWebhookView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, webhook)
 	}
 

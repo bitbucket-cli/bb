@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // resetBranchMocks restores default implementations

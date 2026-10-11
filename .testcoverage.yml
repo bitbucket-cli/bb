@@ -1,32 +1,24 @@
-# Configuration for go-test-coverage
-# Run: go-test-coverage --config .testcoverage.yml
-
+# Package ratchets below the measured baseline; raise them as coverage improves.
+# Paths are relative to the module root, as normalized by go-test-coverage.
 profile: coverage.out
-
-# Exclude generated code from coverage requirements
 exclude:
   paths:
-    - generated/.*
-
-# Coverage thresholds (base minimums)
+    - ^generated/
+    - ^scripts/
 threshold:
-  file: 0      # Per-file handled by overrides
-  package: 0   # Per-package handled by overrides
-  total: 40    # Core libraries have high coverage
-
-# Thresholds for specific files/packages
+  file: 0
+  package: 65
+  total: 65
 override:
-  # Pure utility functions - 100%
-  - threshold: 100
-    path: ^internal/output/format\.go$
-  - threshold: 100
-    path: ^internal/api/client\.go$
-  # Config - viper.Unmarshal error path untestable
-  - threshold: 95
-    path: ^internal/config/config\.go$
-  # Auth - 95% (remaining: platform-specific, keyring, 5-min timeout)
-  - threshold: 95
-    path: ^internal/auth/
-  # CLI commands - require API mocking and stdin handling
-  - threshold: 10
-    path: ^cmd/bb/
+  - path: ^cmd/bb$
+    threshold: 65
+  - path: ^pkg/auth$
+    threshold: 77
+  - path: ^internal/config$
+    threshold: 90
+  - path: ^internal/output$
+    threshold: 91
+  # Interactive terminal prompts currently have no direct automated coverage.
+  # Keep their uncovered statements in the total rather than excluding them.
+  - path: ^internal/interactive$
+    threshold: 0

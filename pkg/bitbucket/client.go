@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/pkg/auth"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/pkg/auth"
 )
 
 // baseURL is the Bitbucket Cloud API root. A var (not const) so tests can point
@@ -43,10 +44,43 @@ type authClient struct {
 	cred       auth.Credential
 	tokenMu    sync.RWMutex
 	underlying *http.Client
-	canRefresh bool // false when using BITBUCKET_API_TOKEN
+	origin     string // configured API origin; empty only for internal test clients
+	canRefresh bool   // false when using BITBUCKET_API_TOKEN
 }
 
 func (c *authClient) Do(req *http.Request) (*http.Response, error) {
+	origin := c.origin
+	if origin == "" {
+		origin = requestOrigin(req.URL)
+	}
+	if requestOrigin(req.URL) != origin || req.URL.User != nil {
+		return nil, fmt.Errorf("refusing authenticated request outside configured API origin")
+	}
+	// Clone the transport client so redirect policy stays local to this request.
+	transport := *c.underlying
+	previousRedirect := transport.CheckRedirect
+	transport.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+		if next.URL.User != nil {
+			return fmt.Errorf("refusing redirect with embedded credentials")
+		}
+		if len(via) >= 10 {
+			return fmt.Errorf("stopped after 10 redirects")
+		}
+		if via[len(via)-1].URL.Scheme == "https" && next.URL.Scheme != "https" {
+			return fmt.Errorf("refusing HTTPS redirect downgrade")
+		}
+		if previousRedirect != nil {
+			if err := previousRedirect(next, via); err != nil {
+				return err
+			}
+		}
+		if requestOrigin(next.URL) != origin {
+			next.Header.Del("Authorization")
+			next.Header.Del("Proxy-Authorization")
+		}
+		return nil
+	}
+
 	c.tokenMu.RLock()
 	cred := c.cred
 	c.tokenMu.RUnlock()
@@ -66,7 +100,7 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 		req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 	}
 
-	resp, err := c.underlying.Do(req)
+	resp, err := transport.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +123,7 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 		if bodySnapshot != nil {
 			req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 		}
-		return c.underlying.Do(req)
+		return transport.Do(req)
 	}
 
 	// Bitbucket returns 404 (not 401) for an expired token hitting a PRIVATE
@@ -110,11 +144,32 @@ func (c *authClient) Do(req *http.Request) (*http.Response, error) {
 			if bodySnapshot != nil {
 				req.Body = io.NopCloser(bytes.NewReader(bodySnapshot))
 			}
-			return c.underlying.Do(req)
+			return transport.Do(req)
 		}
 	}
 
 	return resp, nil
+}
+
+// requestOrigin compares scheme, hostname and effective port rather than DNS suffixes.
+func requestOrigin(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		if u.Scheme == "https" {
+			port = "443"
+		} else if u.Scheme == "http" {
+			port = "80"
+		}
+	}
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Hostname()) + ":" + port
+}
+
+func mustParseAPIURL(raw string) *url.URL {
+	u, _ := url.Parse(raw)
+	if u == nil {
+		return &url.URL{}
+	}
+	return u
 }
 
 // NewClient creates a new authenticated Bitbucket API client
@@ -130,6 +185,7 @@ func NewClient() (*Client, error) {
 	httpClient := &authClient{
 		cred:       cred,
 		underlying: defaultHTTPClient,
+		origin:     requestOrigin(mustParseAPIURL(baseURL)),
 		canRefresh: canRefresh,
 	}
 

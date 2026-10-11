@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 func membersHandler(t *testing.T) http.HandlerFunc {

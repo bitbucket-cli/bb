@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -23,10 +23,10 @@ var variableCmd = &cobra.Command{
 }
 
 var variableListCmd = &cobra.Command{
-	Use:   "list <workspace/repo>",
+	Use:   "list [workspace/repo]",
 	Short: "List pipeline variables",
 	Long:  `List the pipeline variables configured for a repository. Secured values are not returned by the API.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runVariableList,
 }
 
@@ -85,7 +85,7 @@ func runVariableList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(vars) == 0 {
+	if len(vars) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No variables found")
 		return nil
 	}

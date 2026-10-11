@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // fetchAllPages decodes a Bitbucket paginated list response and follows every

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -50,6 +51,11 @@ func Table(headers []string) *tablewriter.Table {
 
 // JSON outputs data as JSON
 func JSON(data interface{}) error {
+	// Empty lists have a stable array shape, including nil typed slices.
+	value := reflect.ValueOf(data)
+	if value.IsValid() && value.Kind() == reflect.Slice && value.IsNil() {
+		data = []interface{}{}
+	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(data)

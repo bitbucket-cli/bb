@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 func resetPipelineScheduleMocks() {

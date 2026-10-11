@@ -8,10 +8,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/interactive"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/interactive"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -196,7 +196,7 @@ func runBranchList(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if len(allBranches) == 0 {
+	if len(allBranches) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No branches found")
 		return nil
 	}
@@ -455,7 +455,7 @@ func runBranchRestrictList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(restrictions) == 0 {
+	if len(restrictions) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No branch restrictions found")
 		return nil
 	}
@@ -629,7 +629,7 @@ func runBranchRestrictView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, restriction)
 	}
 

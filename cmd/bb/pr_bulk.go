@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	generated "github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/output"
+	generated "github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -17,21 +17,21 @@ var prBulkCmd = &cobra.Command{
 }
 
 var prBulkApproveCmd = &cobra.Command{
-	Use:   "approve <workspace/repo> <pr-number...>",
+	Use:   "approve [workspace/repo] <pr-number...>",
 	Short: "Approve multiple pull requests",
 	Args:  cobra.MinimumNArgs(1),
 	RunE:  func(cmd *cobra.Command, args []string) error { return runPRBulk(cmd, args, "approve") },
 }
 
 var prBulkDeclineCmd = &cobra.Command{
-	Use:   "decline <workspace/repo> <pr-number...>",
+	Use:   "decline [workspace/repo] <pr-number...>",
 	Short: "Decline multiple pull requests",
 	Args:  cobra.MinimumNArgs(1),
 	RunE:  func(cmd *cobra.Command, args []string) error { return runPRBulk(cmd, args, "decline") },
 }
 
 var prBulkMergeCmd = &cobra.Command{
-	Use:   "merge <workspace/repo> <pr-number...>",
+	Use:   "merge [workspace/repo] <pr-number...>",
 	Short: "Merge multiple pull requests",
 	Long: `Merge several pull requests, one API call each, run concurrently.
 
@@ -61,7 +61,7 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, ids, err := repoAndArgs(args, 1)
+	repoCtx, ids, err := repoAndIDs(args)
 	if err != nil {
 		return err
 	}

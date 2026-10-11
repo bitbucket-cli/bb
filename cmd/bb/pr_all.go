@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -105,7 +105,7 @@ func runPRListAll(cmd *cobra.Command, args []string) error {
 		all = append(all, page.Values...)
 	}
 
-	if len(all) == 0 {
+	if len(all) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No pull requests found")
 		return nil
 	}

@@ -4,7 +4,7 @@ A powerful command-line interface for Bitbucket Cloud, enabling you to manage re
 
 ## Features
 
-- **Authentication**: Secure OAuth authentication with token storage in system keyring
+- **Authentication**: OAuth and API-token authentication; OAuth tokens use the system keyring with an owner-only plaintext file mirror by default (see [Token storage](#token-storage))
 - **Repositories**: List, view, clone, create, update, fork, and delete repositories
 - **Pull Requests**: Create, view, merge, approve, comment, and diff pull requests
 - **Branches**: Manage branches and branch restrictions
@@ -20,22 +20,26 @@ A powerful command-line interface for Bitbucket Cloud, enabling you to manage re
 
 ## Installation
 
+The planned public preview is **v0.3.0-rc.1**; it has not been published yet.
+The installation commands and release link below are prepared for that preview
+and will work after publication. See [draft preview release notes](RELEASE_NOTES.md).
+
 ### Homebrew (macOS / Linux)
 
 ```bash
-brew install ThomasRedstone/tap/bb
+brew install bitbucket-cli/tap/bb
 ```
 
 ### go install
 
 ```bash
-go install github.com/ThomasRedstone/bb/cmd/bb@latest
+go install github.com/bitbucket-cli/bb/cmd/bb@v0.3.0-rc.1
 ```
 
 ### Linux packages (.deb / .rpm)
 
 Download the `.deb` or `.rpm` for your architecture from the
-[latest release](https://github.com/ThomasRedstone/bb/releases/latest), then:
+[v0.3.0-rc.1 preview release](https://github.com/bitbucket-cli/bb/releases/tag/v0.3.0-rc.1), then:
 
 ```bash
 sudo dpkg -i bb_*_linux_amd64.deb   # Debian/Ubuntu
@@ -49,7 +53,7 @@ attached to each release.
 
 ```bash
 # Clone the repository
-git clone https://github.com/ThomasRedstone/bb.git
+git clone https://github.com/bitbucket-cli/bb.git
 cd bb
 
 # Build
@@ -61,7 +65,7 @@ sudo mv bb /usr/local/bin/
 
 ### Prerequisites
 
-- Go 1.24 or later (only to build from source)
+- Go 1.24 or later with automatic toolchain downloads enabled (only to build from source); builds use the patched toolchain specified in `go.mod`
 - A Bitbucket Cloud account
 - OAuth consumer credentials (see [Authentication](#authentication))
 
@@ -89,12 +93,13 @@ bb pipeline trigger myworkspace/myrepo -b main
 ### Setting Up OAuth
 
 1. Go to Bitbucket Settings > OAuth consumers
-2. Create a new consumer with these permissions:
+2. Create a new consumer with callback URL `http://localhost:34106/callback`.
+3. Grant the permissions needed for your commands:
    - Account: Read
    - Repositories: Read, Write, Admin
    - Pull requests: Read, Write
    - Pipelines: Read, Write
-3. Note your Client ID and Client Secret
+4. Note your Client ID (Key) and Client Secret
 
 ### Login
 
@@ -107,7 +112,8 @@ bb auth login --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 
 # Over SSH / no browser: print the URL, paste back the redirect
 bb auth login --manual
-# Or exchange a callback URL you already have:
+# Or exchange a callback URL you already have (this standalone flow cannot
+# validate which login attempt produced it; only use your own fresh callback):
 bb auth login --callback-url "http://localhost:34106/callback?code=...&state=..."
 
 # Using environment variables (recommended)
@@ -376,7 +382,7 @@ bb config path
 
 Available settings:
 - `workspace` - Default workspace for commands
-- `output_format` - Default output format (table, json)
+- `output_format` - Default output format (table, json, csv)
 - `client_id` - OAuth client ID
 - `client_secret` - OAuth client secret
 
@@ -391,6 +397,13 @@ Available settings:
 | `BITBUCKET_EMAIL` | Account email; pairs with `BITBUCKET_API_TOKEN` to use Basic auth |
 
 Environment variables take precedence over config file values.
+
+`BB_CLIENT_ID_COMMAND` and `BB_CLIENT_SECRET_COMMAND` (or the corresponding
+`client_id_command` / `client_secret_command` settings) can retrieve credentials
+from an external store. Commands run through `sh -c` on Linux/macOS and
+`cmd.exe /D /S /C` on Windows, with a 30-second timeout. A command failure emits
+a diagnostic on stderr and falls back to the next configured credential source.
+Use command syntax appropriate to the operating system.
 
 #### Token authentication
 
@@ -554,11 +567,8 @@ bb auth login
 
 ### API Errors
 
-Use `--json` flag for detailed error responses:
-
-```bash
-bb pr create myworkspace/myrepo -t "Test" -s branch --json
-```
+API failures are reported on stderr with a nonzero exit status. `--json` controls
+successful command output; it does not turn errors into JSON.
 
 ## More Commands
 
@@ -575,6 +585,7 @@ bb commit activity myworkspace/myrepo        # commits per author
 ```bash
 bb source list myworkspace/myrepo            # repo root (default branch)
 bb source list myworkspace/myrepo src --ref develop
+bb source list --path src/nested             # auto-detect the repository
 bb source view myworkspace/myrepo README.md
 ```
 
@@ -624,7 +635,10 @@ bb pr checkout 42                            # auto-detects repo from git remote
 bb pr create myworkspace/myrepo -t "Title"   # source defaults to current branch
 bb pr comment myworkspace/myrepo 42 -b "nit" --path main.go --line 10
 bb pr request-changes myworkspace/myrepo 42 --comment "please fix the tests"
-bb pr threads myworkspace/myrepo 42          # comments as nested threads
+bb pr threads myworkspace/myrepo 42          # comments as nested threads, with IDs
+bb pr comment myworkspace/myrepo 42 -b "done" --reply-to 1234
+bb pr comment-edit myworkspace/myrepo 42 1234 -b "corrected text"
+bb pr comment-delete myworkspace/myrepo 42 1234
 bb pr metrics myworkspace/myrepo             # avg/median time to merge
 bb pr bulk approve myworkspace/myrepo 1 2 3  # runs concurrently
 ```
@@ -641,7 +655,9 @@ bb issue bulk myworkspace/myrepo 12 15 19 --state resolved
 
 ### Output formats
 
-Every list command supports `--json` and `--csv`:
+List output supports `--json` and `--csv`. Empty lists produce `[]` in JSON and
+column headers in CSV. Set a default with `bb config set output_format json`;
+explicit output flags override that default:
 
 ```bash
 bb pr list myworkspace/myrepo --csv > prs.csv
@@ -650,7 +666,9 @@ bb issue list myworkspace/myrepo --json | jq '.[].title'
 
 ## Contributing
 
-Contributions are welcome! Please see [ROADMAP.md](ROADMAP.md) for planned features.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development
+checks and [ROADMAP.md](ROADMAP.md) for planned features. To report a vulnerability
+privately, follow [SECURITY.md](SECURITY.md).
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)

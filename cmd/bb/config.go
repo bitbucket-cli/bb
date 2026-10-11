@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ThomasRedstone/bb/internal/config"
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/config"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -36,7 +36,7 @@ var configGetCmd = &cobra.Command{
 
 Available keys:
   workspace      - Default workspace for commands
-  output_format  - Default output format (table, json)
+  output_format  - Default output format (table, json, csv)
   client_id      - OAuth client ID
   client_secret  - OAuth client secret (masked)`,
 	Args: cobra.ExactArgs(1),
@@ -50,7 +50,7 @@ var configSetCmd = &cobra.Command{
 
 Available keys:
   workspace      - Default workspace for commands
-  output_format  - Default output format (table, json)
+  output_format  - Default output format (table, json, csv)
   client_id      - OAuth client ID
   client_secret  - OAuth client secret
 
@@ -107,7 +107,7 @@ func runConfigList(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		jsonData := make(map[string]interface{})
 		for _, s := range settings {
 			jsonData[s.key] = map[string]interface{}{
@@ -166,8 +166,8 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to set workspace: %w", err)
 		}
 	case "output_format":
-		if value != "table" && value != "json" {
-			return fmt.Errorf("invalid output format: %s (must be 'table' or 'json')", value)
+		if value != "table" && value != "json" && value != "csv" {
+			return fmt.Errorf("invalid output format: %s (must be 'table', 'json', or 'csv')", value)
 		}
 		viper.Set("output_format", value)
 		if err := writeConfigFile(); err != nil {

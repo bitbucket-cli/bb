@@ -281,30 +281,19 @@ func LoadTokens() (*TokenData, error) {
 	return data, nil
 }
 
-// DeleteTokens removes stored tokens. In file mode (tests via ForceFileStorage,
-// or BB_TOKEN_STORE=file) the keyring is left untouched so a test run can never
-// delete the developer's real OAuth token. keyring mode clears only the keyring;
-// auto clears both the keyring and the 0600 file mirror.
+// DeleteTokens clears every production backend, regardless of the current mode.
+// ForceFileStorage isolates tests from the keyring.
 func DeleteTokens() error {
-	mode := storeMode()
-	if mode == storeFile {
-		debugLog("DeleteTokens: mode=file -> clearing file token store only")
-		_ = deleteTokenFile()
-		return nil
+	var errs []error
+	if !ForceFileStorage {
+		if err := keyring.Delete(serviceName, "tokens"); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			errs = append(errs, fmt.Errorf("delete system keyring tokens: %w", err))
+		}
 	}
-	debugLog("DeleteTokens: mode=%s -> clearing keyring%s", mode, ternary(mode == storeKeyring, "", " + file mirror"))
-	_ = keyring.Delete(serviceName, "tokens")
-	if mode != storeKeyring {
-		_ = deleteTokenFile()
+	if err := deleteTokenFile(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		errs = append(errs, fmt.Errorf("delete token file: %w", err))
 	}
-	return nil
-}
-
-func ternary(cond bool, a, b string) string {
-	if cond {
-		return a
-	}
-	return b
+	return errors.Join(errs...)
 }
 
 // HasStoredTokens checks if tokens are stored
@@ -341,14 +330,22 @@ func storeTokensToFile(data *TokenData) error {
 
 	// Write atomically: write a temp file then rename over the target, so a
 	// process killed mid-write can never leave a truncated/empty tokens file.
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, jsonData, 0600); err != nil {
+	tmp, err := os.CreateTemp(dir, ".tokens-*")
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(jsonData); err != nil {
+		tmp.Close()
 		return err
 	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return err
+	}
+
 	return nil
 }
 

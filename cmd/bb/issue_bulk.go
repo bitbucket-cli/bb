@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -38,7 +38,7 @@ func runIssueBulk(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	repoCtx, ids, err := repoAndArgs(args, 1)
+	repoCtx, ids, err := repoAndIDs(args)
 	if err != nil {
 		return err
 	}

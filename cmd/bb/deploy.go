@@ -8,8 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -130,7 +130,7 @@ func runDeployList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(deployments) == 0 {
+	if len(deployments) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No deployments found")
 		return nil
 	}
@@ -217,7 +217,7 @@ func runDeployEnvList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(environments) == 0 {
+	if len(environments) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No environments found")
 		return nil
 	}

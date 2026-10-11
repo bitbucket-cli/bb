@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -122,7 +122,7 @@ func runRepoBranchingModel(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, model)
 	}
 	fmt.Printf("Development: %s\n", model.Development.Branch.Name)
@@ -208,7 +208,7 @@ func runRepoPermissions(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(permissions) == 0 {
+	if len(permissions) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No permissions found")
 		return nil
 	}
@@ -262,7 +262,7 @@ func runRepoForks(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(forks) == 0 {
+	if len(forks) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No forks found")
 		return nil
 	}

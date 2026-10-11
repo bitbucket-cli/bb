@@ -5,7 +5,7 @@ Thanks for your interest in improving the Bitbucket CLI.
 ## Development setup
 
 ```bash
-git clone https://github.com/ThomasRedstone/bb
+git clone https://github.com/bitbucket-cli/bb
 cd bb
 go build ./cmd/bb
 ```
@@ -17,12 +17,13 @@ Run the same checks CI runs:
 ```bash
 go build ./...
 go vet ./...
-go test ./...
+go test -race ./...
+make test-coverage
 golangci-lint run ./...    # config in .golangci.yml
 gofmt -l .                 # should print nothing
 ```
 
-A pre-commit config is provided — `pre-commit install` will run these automatically.
+A pre-commit config is provided — `pre-commit install` runs format, build, vet, lint and tests. Install `golangci-lint` v2.11.4 to match CI. CI additionally checks race detection, package coverage ratchets, release binary vulnerabilities, third-party notice freshness and native macOS/Windows smoke tests.
 
 ## Adding a command
 
@@ -51,3 +52,89 @@ the no-client error path. Keep `golangci-lint run` clean.
 
 Use a `area: summary` prefix (e.g. `pr: add request-changes`). Releases are cut
 with goreleaser; `docs:`/`test:`/`chore:` commits are excluded from the changelog.
+
+## Dependency notices and releases
+
+After changing a dependency or the Go toolchain, run `make licenses` and review
+and commit `THIRD_PARTY_LICENSES.txt`. The generator collects licence and notice
+files from every dependency linked by the six CGO-disabled release targets,
+including platform-specific dependencies, and the selected Go runtime. It fails
+when a module has no discoverable licence; resolve that module's attribution
+manually before releasing. These notices are included in binary archives and
+Linux packages. Extra upstream notices may cover unlinked files.
+
+CI reads the toolchain from `go.mod`; keep its toolchain directive on a supported,
+patched Go release. Coverage checks use `go-test-coverage` v2.18.3 and package
+thresholds in `.testcoverage.yml`. Raise the ratchets when coverage improves.
+Generated code and the release notice generator are excluded from the ratchet.
+
+Tagged releases rerun CI against the tagged commit before publishing. GoReleaser
+is pinned to v2.18.1; validate changes with `goreleaser check` and a local
+`goreleaser release --snapshot --clean --skip=publish` in a clean checkout.
+Homebrew stays a formula for macOS and Linux (amd64 and arm64). After GoReleaser
+successfully publishes release assets, the workflow runs `scripts/homebrew`,
+which verifies each local archive against `dist/checksums.txt` and generates the
+formula. The tap publishing job runs only when the source repository is public; a public
+tap cannot install private release assets. While private, formula generation and
+validation still run and the generated artifact stays in the private workflow.
+A separate workflow job retrieves that formula as a workflow artifact and
+updates only `bb.rb` in the tap, preserving
+an existing root or `Formula/` layout. A new tap uses `Formula/bb.rb`; duplicate
+layouts fail rather than choosing an ambiguous destination. Identical formulas
+produce no commit. If tap publishing fails, rerun only the failed Homebrew job
+within the formula artifact's 14-day retention period; the release job does not
+need to run again.
+
+Set the `HOMEBREW_TAP_GITHUB_TOKEN` repository secret to a token with write access
+to the tap. Set the `HOMEBREW_TAP_REPOSITORY` repository variable to change its
+`owner/repository`; the default is `bitbucket-cli/homebrew-tap`. Release URLs
+follow the releasing GitHub repository, so moving to an organisation only
+requires configuring the tap destination and its token. The source module and
+installation documentation still need updating separately if their names move.
+
+The generator writes local files and has no publishing operation. To inspect a
+formula after a snapshot without touching a tap:
+
+```bash
+go run ./scripts/homebrew -version v0.2.0 -repository bitbucket-cli/bb
+ruby -c dist/homebrew/bb.rb
+go test ./scripts/homebrew
+```
+
+Use the intended release tag for `-version`. Snapshot archives are suitable for
+checking formula layout and checksums; their generated release URLs need an
+actual published tag before users can install them. The generator rejects
+invalid versions/repository names, missing or duplicate checksum entries and
+archive checksum mismatches. No local validation command publishes a release.
+
+
+## Public preview releases
+
+Use a prerelease tag such as `v0.3.0-rc.1` for a public preview. GoReleaser marks
+prerelease tags as GitHub prereleases, labels their title "Public preview", and
+keeps them separate from the latest stable release. The Homebrew formula retains
+the same prerelease version and downloads assets from that exact tag.
+
+Finish and validate changes while the source is private. Once any publication
+requirements are resolved, make the source public before pushing the release
+tag: the public-tap guard uses the visibility recorded in the tag push event.
+Rerunning a workflow originally triggered while private does not change that
+original event. Retain old unsafe/private-era artifacts as draft releases until
+they have been rebuilt and checked; drafting preserves their assets and tags.
+Point installation instructions at the preview tag explicitly because both
+GitHub's latest stable release endpoint and `go install ...@latest` omit previews.
+
+## Generated API client provenance
+
+`generated/bitbucket/client.go` records `oapi-codegen` v2.5.1 as its generator.
+The input is `spec/openapi.yaml`, a Bitbucket API specification carrying
+Atlassian contact details and terms-of-service metadata.
+
+Run `make generate` to reproduce the checked-in client from this specification
+using the pinned generator, `types,client` generation and the `bitbucket` package.
+This command was verified to reproduce the existing client byte for byte.
+The original specification download and Swagger-to-OpenAPI conversion were not
+recorded. Do not claim that the project MIT licence grants rights over the
+upstream specification.
+Before public distribution, record the specification's source/version and verify
+its redistribution permission and required attribution with the upstream owner.

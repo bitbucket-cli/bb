@@ -10,6 +10,13 @@ repos:
         types: [go]
         pass_filenames: true
 
+      - id: go-build
+        name: go build
+        entry: go build ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
       - id: go-vet
         name: go vet
         entry: go vet ./...

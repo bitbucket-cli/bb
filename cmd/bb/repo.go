@@ -10,10 +10,11 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/config"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/config"
+	internalgit "github.com/bitbucket-cli/bb/internal/git"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -285,7 +286,7 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if len(allRepos) == 0 {
+	if len(allRepos) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No repositories found in workspace '%s'", workspace)
 		return nil
 	}
@@ -391,7 +392,7 @@ func runRepoView(cmd *cobra.Command, args []string) error {
 		mainBranch = *repo.Mainbranch.Name
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.JSON(repo)
 	}
 
@@ -608,7 +609,10 @@ func runRepoCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runGitCloneReal(cloneURL, targetDir string) error {
-	gitCmd := exec.Command("git", "clone", cloneURL, targetDir)
+	if err := internalgit.ValidateCloneURL(cloneURL); err != nil {
+		return err
+	}
+	gitCmd := exec.Command("git", "clone", "--", cloneURL, targetDir)
 	gitCmd.Stdout = os.Stdout
 	gitCmd.Stderr = os.Stderr
 	return gitCmd.Run()
@@ -726,7 +730,7 @@ func runRepoReviewersList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(reviewers) == 0 {
+	if len(reviewers) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No default reviewers configured")
 		return nil
 	}

@@ -2,7 +2,9 @@ version: 2
 
 before:
   hooks:
-    - go mod tidy
+    - go mod verify
+    - go run ./scripts/licenses
+    - git diff --exit-code -- THIRD_PARTY_LICENSES.txt
 
 builds:
   - id: bb
@@ -32,6 +34,14 @@ archives:
     files:
       - README.md
       - LICENSE
+      - THIRD_PARTY_LICENSES.txt
+
+# Release-candidate tags remain visibly marked previews; stable tags keep normal
+# release behavior. GitHub does not treat prereleases as the latest stable release.
+release:
+  prerelease: auto
+  make_latest: "{{ if .Prerelease }}false{{ else }}true{{ end }}"
+  name_template: "{{ .Tag }}{{ if .Prerelease }} — Public preview{{ end }}"
 
 checksum:
   name_template: checksums.txt
@@ -46,17 +56,8 @@ changelog:
       - Merge pull request
       - Merge branch
 
-brews:
-  - name: bb
-    repository:
-      owner: ThomasRedstone
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/ThomasRedstone/bb
-    description: Bitbucket CLI — manage repositories, pull requests, and pipelines from your terminal
-    license: MIT
-    install: bin.install "bb"
-    test: system "#{bin}/bb", "--version"
+# Homebrew formula generation/publishing is handled by scripts/homebrew and
+# .github/workflows/release.yml to preserve macOS and Linux tap installs.
 
 # Windows Scoop manifest — DISABLED for v1. To enable: create a
 # ThomasRedstone/scoop-bucket repo, add a SCOOP_BUCKET_GITHUB_TOKEN secret and
@@ -67,7 +68,7 @@ brews:
 #       owner: ThomasRedstone
 #       name: scoop-bucket
 #       token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
-#     homepage: https://github.com/ThomasRedstone/bb
+#     homepage: https://github.com/bitbucket-cli/bb
 #     description: Bitbucket CLI — manage repositories, pull requests, and pipelines from your terminal
 #     license: MIT
 
@@ -77,7 +78,7 @@ nfpms:
   - id: packages
     package_name: bb
     vendor: Thomas Redstone
-    homepage: https://github.com/ThomasRedstone/bb
+    homepage: https://github.com/bitbucket-cli/bb
     maintainer: Thomas Redstone <thomas@redstone.me.uk>
     description: Bitbucket CLI — manage repositories, pull requests, and pipelines from your terminal
     license: MIT
@@ -85,3 +86,8 @@ nfpms:
       - deb
       - rpm
     bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/bb/LICENSE
+      - src: THIRD_PARTY_LICENSES.txt
+        dst: /usr/share/doc/bb/THIRD_PARTY_LICENSES.txt

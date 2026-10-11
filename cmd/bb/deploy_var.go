@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -72,7 +72,7 @@ func runDeployVarList(cmd *cobra.Command, args []string) error {
 	if err := decodeJSON(resp, &page); err != nil {
 		return err
 	}
-	if len(page.Values) == 0 {
+	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No variables found")
 		return nil
 	}

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // commitStatus is the subset of a Bitbucket commit/build status we render.
@@ -56,7 +56,7 @@ func renderStatuses(ctx context.Context, client *api.Client, resp *http.Response
 		all = append(all, page.Values...)
 	}
 
-	if len(all) == 0 {
+	if len(all) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No statuses/checks reported")
 		return nil
 	}

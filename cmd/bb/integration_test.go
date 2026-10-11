@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // captureOut captures stdout while f runs.

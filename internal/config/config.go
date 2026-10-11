@@ -1,11 +1,14 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -99,17 +102,32 @@ func Get() *Config {
 }
 
 // runCredentialCommand runs a shell command and returns its trimmed stdout, or
-// "" on empty command or failure. Used to fetch a credential from an external
+// "" on empty command or failure. Failures are reported without including the
+// command or its output, which may contain a secret. Used to fetch a credential from an external
 // store (e.g. `sops -d ...`) so it need not be plaintext on disk.
 func runCredentialCommand(command string) string {
 	if strings.TrimSpace(command) == "" {
 		return ""
 	}
-	out, err := exec.Command("sh", "-c", command).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	name, args := credentialShell(runtime.GOOS, command)
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "bb: credential command failed: %v\n", err)
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// credentialShell uses the native command interpreter on each platform.
+func credentialShell(goos, command string) (string, []string) {
+	if goos == "windows" {
+		return "cmd.exe", []string{"/D", "/S", "/C", command}
+	}
+	return "sh", []string{"-c", command}
 }
 
 // GetClientID returns the OAuth client ID. Resolution order:

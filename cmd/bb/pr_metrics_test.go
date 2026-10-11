@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 func TestRunPRMetrics(t *testing.T) {

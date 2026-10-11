@@ -99,3 +99,29 @@ func TestDetectRepo(t *testing.T) {
 		t.Errorf("DetectRepo() = %q/%q, %v; want detected/repo", ws, repo, err)
 	}
 }
+
+func TestValidateCloneURL(t *testing.T) {
+	for _, raw := range []string{
+		"git@bitbucket.org:workspace/repo.git",
+		"ssh://git@bitbucket.org/workspace/repo.git",
+		"ssh://git@bitbucket.org:22/workspace/repo.git",
+		"https://bitbucket.org/workspace/repo.git",
+		"https://user@bitbucket.org/workspace/repo.git",
+	} {
+		if err := ValidateCloneURL(raw); err != nil {
+			t.Errorf("valid clone rejected %q: %v", raw, err)
+		}
+	}
+	for _, raw := range []string{
+		"--upload-pack=evil", "ext::evil", "/tmp/local", "file:///tmp/local",
+		"http://bitbucket.org/workspace/repo", "https://bitbucket.org.evil/workspace/repo",
+		"git@evil:workspace/repo", "ssh://user@bitbucket.org/workspace/repo",
+		"https://bitbucket.org/workspace/repo?option=evil", "https://bitbucket.org/workspace/repo#evil",
+		"https://user:secret@bitbucket.org/workspace/repo", "https://bitbucket.org/workspace/..",
+		"https://bitbucket.org/workspace/repo\n", "https://bitbucket.org/workspace",
+	} {
+		if err := ValidateCloneURL(raw); err == nil {
+			t.Errorf("unsafe clone accepted %q", raw)
+		}
+	}
+}

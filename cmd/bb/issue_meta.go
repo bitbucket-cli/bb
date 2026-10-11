@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -77,7 +77,7 @@ func runIssueNamedList(cmd *cobra.Command, args []string, kind string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(items) == 0 {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No %s found", kind)
 		return nil
 	}

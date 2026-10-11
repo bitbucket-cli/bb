@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 func TestRunUser_Current(t *testing.T) {

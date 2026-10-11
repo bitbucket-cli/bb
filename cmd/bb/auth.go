@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ThomasRedstone/bb/internal/config"
-	"github.com/ThomasRedstone/bb/internal/output"
-	"github.com/ThomasRedstone/bb/pkg/auth"
+	"github.com/bitbucket-cli/bb/internal/config"
+	"github.com/bitbucket-cli/bb/internal/output"
+	"github.com/bitbucket-cli/bb/pkg/auth"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // Mockable dependencies for testing
@@ -172,11 +173,40 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 		reader := bufio.NewReader(authStdinReader)
 
 		fmt.Print("Enter Client ID (Key): ")
-		clientID, _ = reader.ReadString('\n')
+		if f, ok := authStdinReader.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+			// Read exactly this line so bufio cannot prefetch a pasted secret before
+			// ReadPassword switches off terminal echo.
+			var line strings.Builder
+			one := make([]byte, 1)
+			for {
+				n, err := f.Read(one)
+				if n > 0 {
+					if one[0] == '\n' {
+						break
+					}
+					line.WriteByte(one[0])
+				}
+				if err != nil {
+					return fmt.Errorf("read client ID: %w", err)
+				}
+			}
+			clientID = line.String()
+		} else {
+			clientID, _ = reader.ReadString('\n')
+		}
 		clientID = strings.TrimSpace(clientID)
 
 		fmt.Print("Enter Client Secret: ")
-		clientSecret, _ = reader.ReadString('\n')
+		if f, ok := authStdinReader.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+			secret, err := term.ReadPassword(int(f.Fd()))
+			fmt.Println()
+			if err != nil {
+				return fmt.Errorf("read client secret: %w", err)
+			}
+			clientSecret = string(secret)
+		} else {
+			clientSecret, _ = reader.ReadString('\n')
+		}
 		clientSecret = strings.TrimSpace(clientSecret)
 
 		if clientID == "" || clientSecret == "" {
@@ -254,15 +284,16 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 }
 
 func runAuthLogout(cmd *cobra.Command, args []string) error {
-	if !authHasStoredTokens() {
-		output.Info("Already logged out")
-		return nil
-	}
+	hadTokens := authHasStoredTokens()
 	if err := authLogout(); err != nil {
-		output.Info("Already logged out")
-		return nil
+		return fmt.Errorf("failed to log out: %w", err)
 	}
-	output.Success("Logged out of Bitbucket")
+	if hadTokens {
+		output.Success("Logged out of Bitbucket")
+	} else {
+		output.Info("Already logged out")
+	}
+
 	return nil
 }
 

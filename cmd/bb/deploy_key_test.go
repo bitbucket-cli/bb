@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 func resetDeployKeyMocks() {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ThomasRedstone/bb/internal/config"
-	"github.com/ThomasRedstone/bb/pkg/auth"
+	"github.com/bitbucket-cli/bb/internal/config"
+	"github.com/bitbucket-cli/bb/pkg/auth"
 )
 
 // resetAuthMocks restores default implementations
@@ -526,33 +526,14 @@ func TestRunAuthLogout_Success(t *testing.T) {
 	}
 }
 
-func TestRunAuthLogout_NotLoggedIn(t *testing.T) {
+func TestRunAuthLogout_ReportsBackendFailureEvenWhenNotLoggedIn(t *testing.T) {
 	defer resetAuthMocks()
-
 	authHasStoredTokens = func() bool { return false }
-	authLogout = func() error {
-		return errors.New("not logged in")
-	}
-
-	// Capture output
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := runAuthLogout(authLogoutCmd, []string{})
-
-	w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-
-	if err != nil {
-		t.Errorf("Should not return error: %v", err)
-	}
-
-	output := buf.String()
-	if !strings.Contains(output, "Already logged out") {
-		t.Errorf("Expected already logged out message, got: %s", output)
+	called := false
+	authLogout = func() error { called = true; return errors.New("backend unavailable") }
+	err := runAuthLogout(authLogoutCmd, nil)
+	if !called || err == nil || !strings.Contains(err.Error(), "backend unavailable") {
+		t.Fatalf("called=%v err=%v", called, err)
 	}
 }
 

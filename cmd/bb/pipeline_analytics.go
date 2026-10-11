@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -72,7 +72,7 @@ func runPipelineAnalytics(cmd *cobra.Command, args []string) error {
 		pipelines = pipelines[:pipelineAnalyticsLimit]
 	}
 
-	if len(pipelines) == 0 {
+	if len(pipelines) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No pipelines found")
 		return nil
 	}

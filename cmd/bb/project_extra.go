@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -94,7 +94,7 @@ func runProjectDeployKeyList(cmd *cobra.Command, args []string) error {
 	if err := decodeJSON(resp, &page); err != nil {
 		return err
 	}
-	if len(page.Values) == 0 {
+	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No deploy keys")
 		return nil
 	}
@@ -223,7 +223,7 @@ func runProjectPermissions(cmd *cobra.Command, args []string) error {
 	if err := decodeJSON(resp, &page); err != nil {
 		return err
 	}
-	if len(page.Values) == 0 {
+	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No explicit permissions")
 		return nil
 	}

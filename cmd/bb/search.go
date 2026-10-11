@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +81,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		all = all[:searchLimit]
 	}
 
-	if len(all) == 0 {
+	if len(all) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No matches found")
 		return nil
 	}

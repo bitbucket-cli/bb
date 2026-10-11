@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ThomasRedstone/bb/internal/git"
+	"github.com/bitbucket-cli/bb/internal/git"
 )
 
 func TestWorkspaceArg(t *testing.T) {

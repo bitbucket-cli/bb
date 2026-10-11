@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strconv"
 
-	generated "github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/config"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	generated "github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/config"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -259,7 +259,7 @@ func runSnippetList(cmd *cobra.Command, args []string) error {
 		result.Next = page.Next
 	}
 
-	if len(result.Values) == 0 {
+	if len(result.Values) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No snippets found")
 		return nil
 	}
@@ -319,7 +319,7 @@ func runSnippetView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, snippet)
 	}
 

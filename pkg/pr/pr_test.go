@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	bitbucket "github.com/ThomasRedstone/bb/generated/bitbucket"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	bitbucket "github.com/bitbucket-cli/bb/generated/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // withServer points pr.NewClient at an httptest server for the duration of a

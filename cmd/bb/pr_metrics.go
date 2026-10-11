@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -72,6 +72,9 @@ func runPRMetrics(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(prs) == 0 {
+		if output.CurrentFormat != output.FormatTable {
+			return output.Print([]string{"METRIC", "VALUE"}, nil, map[string]interface{}{"sampled": 0})
+		}
 		output.Info("No merged pull requests found")
 		return nil
 	}
@@ -86,6 +89,9 @@ func runPRMetrics(cmd *cobra.Command, args []string) error {
 		durations = append(durations, merged.Sub(created))
 	}
 	if len(durations) == 0 {
+		if output.CurrentFormat != output.FormatTable {
+			return output.Print([]string{"METRIC", "VALUE"}, nil, map[string]interface{}{"sampled": len(prs)})
+		}
 		output.Info("Could not compute timings from the sampled PRs")
 		return nil
 	}

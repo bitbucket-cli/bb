@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -36,6 +38,9 @@ func TestInit(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	err := Init()
@@ -56,6 +61,9 @@ func TestWriteConfig_SecretFilePermissions(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	if err := Init(); err != nil {
@@ -73,7 +81,7 @@ func TestWriteConfig_SecretFilePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat config: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0600 {
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm != 0600 {
 		t.Errorf("config.yaml perms = %o, want 0600", perm)
 	}
 }
@@ -84,6 +92,9 @@ func TestSetGetScopes(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 	os.Unsetenv("BB_SCOPES")
 
@@ -256,6 +267,9 @@ func TestSetClientCredentials(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	// Initialize config first
@@ -281,6 +295,9 @@ func TestSetWorkspace(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	if err := Init(); err != nil {
@@ -305,6 +322,9 @@ func TestInit_WithExistingConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	// Create config directory and file
@@ -345,6 +365,9 @@ func TestInit_InvalidConfigFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	// Create config directory with invalid YAML
@@ -364,6 +387,9 @@ func TestInit_CannotCreateConfigDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	// Create a file where the config directory should be (blocks mkdir)
@@ -378,11 +404,17 @@ func TestInit_CannotCreateConfigDir(t *testing.T) {
 }
 
 func TestWriteConfig_Error(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows chmod does not make directories read-only")
+	}
 	resetState()
 
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	if err := Init(); err != nil {
@@ -435,6 +467,9 @@ func TestWriteConfig_HomeDirError(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 	defer os.Setenv("HOME", origHome)
 
 	// Initialize first
@@ -456,7 +491,7 @@ func TestWriteConfig_HomeDirError(t *testing.T) {
 
 func TestGetClientSecret_Command(t *testing.T) {
 	os.Unsetenv("BB_CLIENT_SECRET")
-	os.Setenv("BB_CLIENT_SECRET_COMMAND", "printf 'from-cmd'")
+	os.Setenv("BB_CLIENT_SECRET_COMMAND", "echo from-cmd")
 	defer os.Unsetenv("BB_CLIENT_SECRET_COMMAND")
 	if got := GetClientSecret(); got != "from-cmd" {
 		t.Errorf("GetClientSecret via command = %q, want from-cmd", got)
@@ -466,5 +501,26 @@ func TestGetClientSecret_Command(t *testing.T) {
 	defer os.Unsetenv("BB_CLIENT_SECRET")
 	if got := GetClientSecret(); got != "from-env" {
 		t.Errorf("env should win: got %q, want from-env", got)
+	}
+}
+
+func TestCredentialShell(t *testing.T) {
+	for _, tc := range []struct {
+		goos, name string
+		args       []string
+	}{
+		{"windows", "cmd.exe", []string{"/D", "/S", "/C", "echo credential"}},
+		{"linux", "sh", []string{"-c", "echo credential"}},
+		{"darwin", "sh", []string{"-c", "echo credential"}},
+	} {
+		name, args := credentialShell(tc.goos, "echo credential")
+		if name != tc.name || !reflect.DeepEqual(args, tc.args) {
+			t.Errorf("%s shell = %q %v", tc.goos, name, args)
+		}
+	}
+}
+func TestCredentialCommandFailure(t *testing.T) {
+	if got := runCredentialCommand("exit 17"); got != "" {
+		t.Errorf("failed command returned %q", got)
 	}
 }

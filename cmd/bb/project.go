@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -177,7 +177,7 @@ func runProjectReviewersList(cmd *cobra.Command, args []string) error {
 	if err := decodeJSON(resp, &page); err != nil {
 		return err
 	}
-	if len(page.Values) == 0 {
+	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No default reviewers")
 		return nil
 	}
@@ -263,7 +263,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 		url = page.Next
 	}
 
-	if len(all) == 0 {
+	if len(all) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No projects found")
 		return nil
 	}
@@ -299,7 +299,7 @@ func runProjectView(cmd *cobra.Command, args []string) error {
 	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.JSON(p)
 	}
 	fmt.Printf("Key:         %s\n", p.Key)

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -58,7 +58,7 @@ func runUser(cmd *cobra.Command, args []string) error {
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.JSON(u)
 	}
 	fmt.Printf("Name:       %s\n", u.DisplayName)

@@ -3,6 +3,8 @@ package auth
 import (
 	"os"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 // TestMain isolates the whole auth test suite from the developer's real stored
@@ -16,10 +18,16 @@ import (
 // pollute ~/.config/bb/tokens.json (and, via keyring re-seed, the real keyring).
 // Individual tests may still layer their own temp HOME on top of this.
 func TestMain(m *testing.M) {
+	keyring.MockInit()
 	serviceName = "bb-cli-test"
 	tmp, err := os.MkdirTemp("", "bb-auth-test-home")
-	if err == nil {
-		os.Setenv("HOME", tmp)
+	if err != nil {
+		panic(err)
+	}
+	for _, key := range []string{"HOME", "USERPROFILE"} {
+		if err := os.Setenv(key, tmp); err != nil {
+			panic(err)
+		}
 	}
 	code := m.Run()
 	if tmp != "" {

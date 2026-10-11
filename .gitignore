@@ -27,8 +27,10 @@ vendor/
 Thumbs.db
 
 # Config (may contain secrets)
-# Uncomment if you want to ignore local config:
-# config.yaml
+# Local credential/config artifacts
+/config.yaml
+/tokens.json
+/tokens.json.*
 
 # Downloaded specs (can be regenerated)
 spec/swagger.json
@@ -36,3 +38,6 @@ spec/swagger.json
 # Coverage reports
 coverage.html
 *.html
+
+# Release artifacts
+/dist/

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	generated "github.com/ThomasRedstone/bb/generated/bitbucket"
+	generated "github.com/bitbucket-cli/bb/generated/bitbucket"
 )
 
 // newTestClient builds a Client whose embedded generated client points at the

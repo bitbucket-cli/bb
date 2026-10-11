@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // resetPipelineMocks restores default implementations
@@ -575,6 +575,9 @@ func TestRunPipelineView_InvalidJSON(t *testing.T) {
 func TestRunPipelineView_JSONOutput(t *testing.T) {
 	defer resetPipelineMocks()
 	origJSONOutput := jsonOutput
+	oldFormat := output.CurrentFormat
+	output.SetFormat("json")
+	defer func() { output.CurrentFormat = oldFormat }()
 	jsonOutput = true
 	defer func() { jsonOutput = origJSONOutput }()
 

@@ -120,7 +120,13 @@ func Login(cfg OAuthConfig) (*TokenData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start callback server: %w", err)
 	}
-	defer server.Shutdown(context.Background())
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			_ = server.Close()
+		}
+	}()
 
 	// Build authorization URL
 	authURL := buildAuthURL(cfg.ClientID, state, cfg.Scopes)
@@ -180,15 +186,23 @@ func ExchangeCallbackURL(cfg OAuthConfig, expectedState, pasted string) (*TokenD
 	}
 
 	code := pasted
-	if u, perr := url.Parse(pasted); perr == nil && u.Query().Get("code") != "" {
+	u, parseErr := url.Parse(pasted)
+	isURL := strings.Contains(pasted, "://") || strings.HasPrefix(pasted, "//") || (parseErr == nil && (u.IsAbs() || u.Host != ""))
+	if isURL {
+		if parseErr != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return nil, fmt.Errorf("invalid callback URL")
+		}
 		q := u.Query()
+		if expectedState != "" && q.Get("state") != expectedState {
+			return nil, fmt.Errorf("state mismatch — the pasted URL is from a different login attempt")
+		}
 		if errMsg := q.Get("error"); errMsg != "" {
 			return nil, fmt.Errorf("authorization failed: %s - %s", errMsg, q.Get("error_description"))
 		}
-		if expectedState != "" && q.Get("state") != "" && q.Get("state") != expectedState {
-			return nil, fmt.Errorf("state mismatch — the pasted URL is from a different login attempt")
-		}
 		code = q.Get("code")
+		if code == "" {
+			return nil, fmt.Errorf("no authorization code received in callback URL")
+		}
 	}
 
 	tokens, err := exchangeCode(cfg.ClientID, cfg.ClientSecret, code)
@@ -223,28 +237,28 @@ func startCallbackServer(expectedState string, codeChan chan<- string, errChan c
 	mux.HandleFunc(callbackPath, func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 
-		// Check for error
-		if errMsg := query.Get("error"); errMsg != "" {
-			errDesc := query.Get("error_description")
-			errChan <- fmt.Errorf("authorization failed: %s - %s", errMsg, errDesc)
-			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h1>Authorization Failed</h1><p>%s</p><p>You can close this window.</p></body></html>", html.EscapeString(errDesc))
+		// Unrelated callbacks must not complete or terminate this login attempt.
+		if query.Get("state") != expectedState {
+			http.Error(w, "State mismatch. Please try again.", http.StatusBadRequest)
 			return
 		}
-
-		// Verify state
-		state := query.Get("state")
-		if state != expectedState {
-			errChan <- fmt.Errorf("state mismatch - possible CSRF attack")
+		if errMsg := query.Get("error"); errMsg != "" {
+			select {
+			case errChan <- fmt.Errorf("authorization failed: %s - %s", errMsg, query.Get("error_description")):
+			default:
+			}
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h1>Error</h1><p>State mismatch. Please try again.</p></body></html>")
+			fmt.Fprintf(w, "<html><body><h1>Authorization Failed</h1><p>%s</p></body></html>", html.EscapeString(query.Get("error_description")))
 			return
 		}
 
 		// Get authorization code
 		code := query.Get("code")
 		if code == "" {
-			errChan <- fmt.Errorf("no authorization code received")
+			select {
+			case errChan <- fmt.Errorf("no authorization code received"):
+			default:
+			}
 			w.Header().Set("Content-Type", "text/html")
 			fmt.Fprintf(w, "<html><body><h1>Error</h1><p>No authorization code received.</p></body></html>")
 			return
@@ -253,7 +267,10 @@ func startCallbackServer(expectedState string, codeChan chan<- string, errChan c
 		// Success
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprintf(w, "<html><body><h1>Authorization Successful!</h1><p>You can close this window and return to the terminal.</p></body></html>")
-		codeChan <- code
+		select {
+		case codeChan <- code:
+		default:
+		}
 	})
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", callbackPort))
@@ -261,7 +278,7 @@ func startCallbackServer(expectedState string, codeChan chan<- string, errChan c
 		return nil, fmt.Errorf("failed to listen on port %d: %w", callbackPort, err)
 	}
 
-	server := &http.Server{Handler: mux}
+	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second}
 	go server.Serve(listener)
 
 	return server, nil

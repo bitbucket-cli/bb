@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -99,7 +99,7 @@ func runCommitReport(cmd *cobra.Command, args []string) error {
 	if err := decodeJSON(resp, &page); err != nil {
 		return err
 	}
-	if len(page.Values) == 0 {
+	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No reports found")
 		return nil
 	}
@@ -155,7 +155,7 @@ func runCommitList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(commits) == 0 {
+	if len(commits) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No commits found")
 		return nil
 	}
@@ -206,7 +206,7 @@ func runCommitView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, c)
 	}
 	fmt.Printf("Hash:    %s\n", c.Hash)
@@ -238,7 +238,7 @@ func runCommitActivity(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(commits) == 0 {
+	if len(commits) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No commits found")
 		return nil
 	}

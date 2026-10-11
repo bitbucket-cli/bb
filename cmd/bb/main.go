@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ThomasRedstone/bb/internal/config"
-	"github.com/ThomasRedstone/bb/internal/output"
-	"github.com/ThomasRedstone/bb/pkg/auth"
+	"github.com/bitbucket-cli/bb/internal/config"
+	"github.com/bitbucket-cli/bb/internal/output"
+	"github.com/bitbucket-cli/bb/pkg/auth"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +36,9 @@ To get started, run:
 		// Apply the configured token storage mode (auto/keyring/file).
 		auth.SetTokenStoreMode(config.GetTokenStore())
 
+		// Apply the configured default, then explicit flags.
+		output.SetFormat(config.Get().OutputFormat)
+
 		// Set output format
 		if jsonOutput {
 			output.SetFormat("json")
@@ -50,6 +53,7 @@ To get started, run:
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 	rootCmd.PersistentFlags().BoolVar(&csvOutput, "csv", false, "Output in CSV format")
+	rootCmd.MarkFlagsMutuallyExclusive("json", "csv")
 	rootCmd.PersistentFlags().StringVarP(&repoOverride, "repo", "R", "", "Target repository as workspace/repo (default: detected from the current git remote)")
 
 	// Add subcommands

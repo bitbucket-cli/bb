@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -69,18 +69,57 @@ func runPRThreads(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, comments)
 	}
 
-	// Build parent -> children, ignoring deleted comments.
-	children := map[int][]prThreadComment{}
-	var roots []prThreadComment
+	if output.CurrentFormat == output.FormatCSV {
+		var rows [][]string
+		for _, c := range comments {
+			parent := ""
+			if c.Parent != nil {
+				parent = strconv.Itoa(c.Parent.ID)
+			}
+			content := c.Content.Raw
+			if c.Deleted {
+				content = "[deleted]"
+			}
+			rows = append(rows, []string{strconv.Itoa(c.ID), parent, c.User.DisplayName, content})
+		}
+		return output.Print([]string{"ID", "PARENT", "AUTHOR", "CONTENT"}, rows, comments)
+	}
+
+	// Retain deleted ancestors as placeholders so their live replies remain visible.
+	byID := map[int]prThreadComment{}
+	for _, c := range comments {
+		byID[c.ID] = c
+	}
+	visible := map[int]bool{}
 	for _, c := range comments {
 		if c.Deleted {
 			continue
 		}
-		if c.Parent != nil {
+		for !visible[c.ID] {
+			visible[c.ID] = true
+			if c.Parent == nil {
+				break
+			}
+			parent, ok := byID[c.Parent.ID]
+			if !ok {
+				break
+			}
+			c = parent
+		}
+	}
+
+	// Build parent -> children from the retained comments.
+	children := map[int][]prThreadComment{}
+	var roots []prThreadComment
+	for _, c := range comments {
+		if !visible[c.ID] {
+			continue
+		}
+		if c.Parent != nil && visible[c.Parent.ID] {
 			children[c.Parent.ID] = append(children[c.Parent.ID], c)
 		} else {
 			roots = append(roots, c)
@@ -108,7 +147,11 @@ func printThread(c prThreadComment, children map[int][]prThreadComment, depth in
 			anchor = fmt.Sprintf(" [%s]", c.Inline.Path)
 		}
 	}
-	fmt.Printf("%s- %s%s: %s\n", indent, c.User.DisplayName, anchor, firstLine(c.Content.Raw))
+	content := firstLine(c.Content.Raw)
+	if c.Deleted {
+		content = "[deleted]"
+	}
+	fmt.Printf("%s- #%d %s%s: %s\n", indent, c.ID, c.User.DisplayName, anchor, content)
 	for _, child := range children[c.ID] {
 		printThread(child, children, depth+1)
 	}

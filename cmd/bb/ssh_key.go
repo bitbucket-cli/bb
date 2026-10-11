@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -89,7 +89,7 @@ func runSSHKeyList(cmd *cobra.Command, args []string) error {
 	if err := decodeJSON(resp, &page); err != nil {
 		return err
 	}
-	if len(page.Values) == 0 {
+	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No SSH keys found")
 		return nil
 	}

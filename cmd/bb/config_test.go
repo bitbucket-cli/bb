@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/bitbucket-cli/bb/internal/output"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,6 +60,12 @@ func TestRunConfigList(t *testing.T) {
 			os.Unsetenv("BB_CLIENT_ID")
 			os.Unsetenv("BB_CLIENT_SECRET")
 
+			oldFormat := output.CurrentFormat
+			defer func() { output.CurrentFormat = oldFormat }()
+			output.SetFormat("table")
+			if tt.jsonOutput {
+				output.SetFormat("json")
+			}
 			jsonOutput = tt.jsonOutput
 			tt.setup()
 

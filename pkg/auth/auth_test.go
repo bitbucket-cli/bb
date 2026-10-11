@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -711,6 +712,9 @@ func TestExchangeCallbackURL(t *testing.T) {
 		t.Error("expected a state mismatch error")
 	}
 
+	if _, err := ExchangeCallbackURL(cfg, "st8", "http://localhost:34106/callback?code=Y"); err == nil {
+		t.Error("missing state must be rejected")
+	}
 	// Empty input is rejected.
 	if _, err := ExchangeCallbackURL(cfg, "", ""); err == nil {
 		t.Error("expected an error for empty input")
@@ -1041,14 +1045,15 @@ func TestStartCallbackServer_StateMismatch(t *testing.T) {
 	}
 	resp.Body.Close()
 
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
 	select {
 	case err := <-errChan:
-		if !strings.Contains(err.Error(), "state mismatch") {
-			t.Errorf("Error should mention state mismatch, got: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Error("Expected error on channel for state mismatch")
+		t.Fatalf("unrelated callback terminated login: %v", err)
+	default:
 	}
+
 }
 
 func TestStartCallbackServer_AuthError(t *testing.T) {
@@ -1061,7 +1066,7 @@ func TestStartCallbackServer_AuthError(t *testing.T) {
 	}
 	defer server.Shutdown(context.Background())
 
-	resp, err := http.Get("http://localhost:34106/callback?error=access_denied&error_description=User%20denied")
+	resp, err := http.Get("http://localhost:34106/callback?state=test-state&error=access_denied&error_description=User%20denied")
 	if err != nil {
 		t.Fatalf("GET error: %v", err)
 	}
@@ -1118,18 +1123,18 @@ func TestLogin_NoCredentials(t *testing.T) {
 func TestLogin_DefaultScopes(t *testing.T) {
 	defer resetMocks()
 
-	// Mock browser opener
 	browserOpened := false
-	openBrowserFn = func(url string) error {
+	openBrowserFn = func(raw string) error {
 		browserOpened = true
+		u, _ := url.Parse(raw)
+		go func() {
+			resp, err := http.Get("http://localhost:34106/callback?state=" + u.Query().Get("state") + "&error=access_denied")
+			if err == nil {
+				resp.Body.Close()
+			}
+		}()
 		return nil
 	}
-
-	// Start a test with immediate auth code delivery
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		http.Get("http://localhost:34106/callback?state=WILL_NOT_MATCH&code=test-code")
-	}()
 
 	cfg := OAuthConfig{
 		ClientID:     "test-id",
@@ -1137,7 +1142,7 @@ func TestLogin_DefaultScopes(t *testing.T) {
 		// No scopes - should use defaults
 	}
 
-	// This will fail due to state mismatch, but we can verify scopes were set
+	// A correctly bound denial completes the flow without a token exchange.
 	_, _ = Login(cfg)
 
 	if !browserOpened {
@@ -1198,17 +1203,16 @@ func TestLogin_Success(t *testing.T) {
 func TestLogin_BrowserError(t *testing.T) {
 	defer resetMocks()
 
-	// Mock browser to fail - this shouldn't stop login
-	openBrowserFn = func(url string) error {
+	openBrowserFn = func(raw string) error {
+		u, _ := url.Parse(raw)
+		go func() {
+			resp, err := http.Get("http://localhost:34106/callback?state=" + u.Query().Get("state") + "&error=access_denied")
+			if err == nil {
+				resp.Body.Close()
+			}
+		}()
 		return errors.New("browser failed")
 	}
-
-	// Simulate callback in background
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		// Will fail with state mismatch, that's fine for this test
-		http.Get("http://localhost:34106/callback?error=access_denied")
-	}()
 
 	cfg := OAuthConfig{
 		ClientID:     "test-id",

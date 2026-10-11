@@ -9,24 +9,25 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/interactive"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
-	bbpr "github.com/ThomasRedstone/bb/pkg/pr"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/interactive"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
+	bbpr "github.com/bitbucket-cli/bb/pkg/pr"
 	"github.com/spf13/cobra"
 )
 
 var (
-	prState       string
-	prTitle       string
-	prBody        string
-	prSource      string
-	prDest        string
-	prReviewers   []string
-	prComment     string
-	prCommentPath string
-	prCommentLine int
+	prState        string
+	prTitle        string
+	prBody         string
+	prSource       string
+	prDest         string
+	prReviewers    []string
+	prComment      string
+	prCommentPath  string
+	prCommentLine  int
+	prCommentReply int
 
 	prDraft            bool
 	prCloseSource      bool
@@ -120,6 +121,10 @@ var prCommentCmd = &cobra.Command{
 	Short: "Add a comment to a pull request",
 	Long: `Add a new comment to a pull request.
 
+Use --reply-to <comment-id> to reply under an existing comment; the reply
+inherits the parent's inline anchor. Comment IDs are shown by 'bb pr comments'
+and 'bb pr threads'.
+
 Use -i flag for interactive selection when pr-number is omitted.`,
 	Args: cobra.RangeArgs(0, 2),
 	RunE: runPRComment,
@@ -157,6 +162,18 @@ func init() {
 	prCommentCmd.Flags().StringVarP(&prComment, "body", "b", "", "Comment text (required)")
 	prCommentCmd.Flags().StringVar(&prCommentPath, "path", "", "File path for an inline comment")
 	prCommentCmd.Flags().IntVar(&prCommentLine, "line", 0, "Line number (in the new version) for an inline comment; requires --path")
+	prCommentCmd.Flags().IntVar(&prCommentReply, "reply-to", 0, "ID of the comment to reply to")
+	prCommentCmd.MarkFlagsMutuallyExclusive("reply-to", "path")
+	prCommentCmd.MarkFlagsMutuallyExclusive("reply-to", "line")
+	prCommentCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		if cmd.Flags().Changed("reply-to") && prCommentReply <= 0 {
+			return fmt.Errorf("--reply-to must be a positive comment ID")
+		}
+		if cmd.Flags().Changed("line") && (prCommentPath == "" || prCommentLine <= 0) {
+			return fmt.Errorf("--line must be positive and requires --path")
+		}
+		return nil
+	}
 	prCommentCmd.MarkFlagRequired("body")
 
 	// Add interactive flag to commands that support it
@@ -201,7 +218,7 @@ func runPRList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(prs) == 0 {
+	if len(prs) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No pull requests found")
 		return nil
 	}
@@ -277,7 +294,7 @@ func runPRView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.JSON(pr)
 	}
 
@@ -753,15 +770,16 @@ func runPRComments(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(comments) == 0 {
+	if len(comments) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No comments found")
 		return nil
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.JSON(comments)
 	}
 
+	var commentRows [][]string
 	for _, comment := range comments {
 		if comment.Deleted != nil && *comment.Deleted {
 			continue
@@ -797,10 +815,17 @@ func runPRComments(cmd *cobra.Command, args []string) error {
 			location += "]"
 		}
 
+		if output.CurrentFormat == output.FormatCSV {
+			commentRows = append(commentRows, []string{strconv.FormatInt(id, 10), author, createdOn, location, content})
+			continue
+		}
 		fmt.Printf("--- Comment #%d by %s on %s%s ---\n", id, author, createdOn, location)
 		fmt.Printf("%s\n\n", content)
 	}
 
+	if output.CurrentFormat == output.FormatCSV {
+		return output.Print([]string{"ID", "AUTHOR", "CREATED", "LOCATION", "CONTENT"}, commentRows, comments)
+	}
 	return nil
 }
 
@@ -823,19 +848,27 @@ func runPRComment(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := postPRComment(ctx, client, repoCtx, prID, prComment, prCommentPath, prCommentLine); err != nil {
+	if err := postPRComment(ctx, client, repoCtx, prID, prComment, prCommentPath, prCommentLine, prCommentReply); err != nil {
 		return err
 	}
 
+	if prCommentReply > 0 {
+		output.Success("Replied to comment %d on pull request #%d", prCommentReply, prID)
+		return nil
+	}
 	output.Success("Added comment to pull request #%d", prID)
 	return nil
 }
 
 // postPRComment adds a comment to a pull request, optionally anchored inline to
-// a file path and line (in the new version of the file).
-func postPRComment(ctx context.Context, client *api.Client, repoCtx *api.RepoContext, prID int, text, path string, line int) error {
+// a file path and line (in the new version of the file), or as a reply to the
+// comment with ID parent (when parent > 0).
+func postPRComment(ctx context.Context, client *api.Client, repoCtx *api.RepoContext, prID int, text, path string, line, parent int) error {
 	commentBody := map[string]interface{}{
 		"content": map[string]interface{}{"raw": text},
+	}
+	if parent > 0 {
+		commentBody["parent"] = map[string]interface{}{"id": parent}
 	}
 	if path != "" {
 		inline := map[string]interface{}{"path": path}

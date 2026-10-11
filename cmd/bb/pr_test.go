@@ -3,15 +3,16 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
-	bbpr "github.com/ThomasRedstone/bb/pkg/pr"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
+	bbpr "github.com/bitbucket-cli/bb/pkg/pr"
 )
 
 // resetPRMocks restores default implementations
@@ -453,6 +454,9 @@ func TestRunPRView_Success(t *testing.T) {
 func TestRunPRView_JSONOutput(t *testing.T) {
 	defer resetPRMocks()
 	origJSONOutput := jsonOutput
+	oldFormat := output.CurrentFormat
+	output.SetFormat("json")
+	defer func() { output.CurrentFormat = oldFormat }()
 	jsonOutput = true
 	defer func() { jsonOutput = origJSONOutput }()
 

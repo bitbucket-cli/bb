@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -173,7 +174,7 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(issues) == 0 {
+	if len(issues) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No issues found")
 		return nil
 	}
@@ -337,7 +338,7 @@ func runIssueView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, issue)
 	}
 
@@ -579,15 +580,16 @@ func runIssueComments(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(comments) == 0 {
+	if len(comments) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No comments found")
 		return nil
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, comments)
 	}
 
+	var commentRows [][]string
 	for _, comment := range comments {
 		author := "Unknown"
 		if comment.User != nil {
@@ -597,8 +599,15 @@ func runIssueComments(cmd *cobra.Command, args []string) error {
 		if comment.Content != nil {
 			content = comment.Content.Raw
 		}
+		if output.CurrentFormat == output.FormatCSV {
+			commentRows = append(commentRows, []string{strconv.Itoa(comment.ID), author, comment.CreatedOn, content})
+			continue
+		}
 		fmt.Printf("Comment #%d by %s (%s):\n%s\n\n", comment.ID, author, comment.CreatedOn, content)
 	}
 
+	if output.CurrentFormat == output.FormatCSV {
+		return output.Print([]string{"ID", "AUTHOR", "CREATED", "CONTENT"}, commentRows, comments)
+	}
 	return nil
 }

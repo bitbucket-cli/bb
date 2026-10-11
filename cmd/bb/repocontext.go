@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ThomasRedstone/bb/internal/config"
-	"github.com/ThomasRedstone/bb/internal/git"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/config"
+	"github.com/bitbucket-cli/bb/internal/git"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // workspaceArg resolves just a workspace (for cross-repo commands). Resolution:
@@ -140,4 +140,19 @@ func repoAndOptionalNumber(args []string) (*api.RepoContext, []string, error) {
 func looksLikeRepo(s string) bool {
 	i := strings.IndexByte(s, '/')
 	return i > 0 && i < len(s)-1
+}
+
+// repoAndIDs resolves an optional repository followed by any number of IDs.
+// Unlike repoAndArgs, an additional ID does not imply a repository argument.
+func repoAndIDs(args []string) (*api.RepoContext, []string, error) {
+	if repoOverride != "" {
+		ctx, err := api.ParseRepoContext(repoOverride)
+		return ctx, args, err
+	}
+	if len(args) > 0 && looksLikeRepo(args[0]) {
+		ctx, err := api.ParseRepoContext(args[0])
+		return ctx, args[1:], err
+	}
+	ctx, err := gitRepoCtx()
+	return ctx, args, err
 }

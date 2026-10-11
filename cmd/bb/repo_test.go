@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/config"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/config"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // resetRepoMocks restores default implementations
@@ -821,6 +822,9 @@ func TestRunRepoView_Success(t *testing.T) {
 func TestRunRepoView_JSONOutput(t *testing.T) {
 	defer resetRepoMocks()
 	origJSON := jsonOutput
+	oldFormat := output.CurrentFormat
+	output.SetFormat("json")
+	defer func() { output.CurrentFormat = oldFormat }()
 	jsonOutput = true
 	defer func() { jsonOutput = origJSON }()
 

@@ -6,12 +6,13 @@ import (
 	"io"
 	"os"
 
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
 var sourceRef string
+var sourceListPath string
 
 // Mockable dependencies for testing
 var sourceNewAPIClient = api.NewClient
@@ -29,6 +30,7 @@ and raw bytes for a file. The ref defaults to the repository's main branch.`,
 var sourceListCmd = &cobra.Command{
 	Use:   "list [workspace/repo] [path]",
 	Short: "List a directory's contents",
+	Long:  "List a directory. Use --path <directory> with an inferred repository; positional paths follow an explicit workspace/repo.",
 	Args:  cobra.RangeArgs(0, 2),
 	RunE:  runSourceList,
 }
@@ -41,6 +43,7 @@ var sourceViewCmd = &cobra.Command{
 }
 
 func init() {
+	sourceListCmd.Flags().StringVar(&sourceListPath, "path", "", "Directory to list (use with an inferred repository or --repo)")
 	sourceListCmd.Flags().StringVar(&sourceRef, "ref", "", "Branch, tag, or commit (defaults to the main branch)")
 	sourceViewCmd.Flags().StringVar(&sourceRef, "ref", "", "Branch, tag, or commit (defaults to the main branch)")
 
@@ -87,8 +90,11 @@ func runSourceList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	path := ""
+	path := sourceListPath
 	if len(rest) > 0 {
+		if cmd.Flags().Changed("path") {
+			return fmt.Errorf("provide the directory either positionally or with --path")
+		}
 		path = rest[0]
 	}
 
@@ -106,7 +112,7 @@ func runSourceList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse listing (is %q a file? use `source view`): %w", path, err)
 	}
 
-	if len(entries) == 0 {
+	if len(entries) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No entries found")
 		return nil
 	}

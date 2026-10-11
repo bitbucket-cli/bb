@@ -310,3 +310,30 @@ func TestTruncate(t *testing.T) {
 		})
 	}
 }
+
+func TestJSONEmptySlicesKeepArrayShape(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value interface{}
+		want  string
+	}{
+		{"nil strings", []string(nil), "[]"},
+		{"nil records", []map[string]interface{}(nil), "[]"},
+		{"empty slice", []int{}, "[]"},
+		{"object", map[string]int{"sampled": 0}, `{"sampled":0}`},
+		{"nil object", map[string]int(nil), "null"},
+		{"nil interface", nil, "null"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var err error
+			got := captureStdout(func() { err = JSON(tc.value) })
+			if err != nil {
+				t.Fatal(err)
+			}
+			compact := strings.Join(strings.Fields(got), "")
+			if compact != tc.want {
+				t.Fatalf("JSON=%q, want %q", got, tc.want)
+			}
+		})
+	}
+}

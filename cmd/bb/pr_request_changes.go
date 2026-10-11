@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ThomasRedstone/bb/internal/output"
+	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -53,7 +53,7 @@ func runPRRequestChanges(cmd *cobra.Command, args []string) error {
 
 	// Optionally leave a comment explaining the requested changes first.
 	if prRequestChangesComment != "" && !prRequestChangesRemove {
-		if err := postPRComment(ctx, client, repoCtx, prID, prRequestChangesComment, "", 0); err != nil {
+		if err := postPRComment(ctx, client, repoCtx, prID, prRequestChangesComment, "", 0, 0); err != nil {
 			return err
 		}
 	}

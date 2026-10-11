@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 func TestRunIssueBulk(t *testing.T) {

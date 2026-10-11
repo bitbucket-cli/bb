@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 )
 
 // uuidRe matches a Bitbucket UUID in its canonical braced form, e.g.

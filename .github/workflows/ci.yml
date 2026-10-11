@@ -5,42 +5,79 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    name: Build & Test
+    name: Build, test and coverage
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          go-version: '1.24'
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
           cache: true
-
+      - name: Verify formatting
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
       - name: Verify
         run: go vet ./...
-
-      - name: Test
-        run: go test ./...
-
+      - name: Test with race detection and coverage
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Enforce coverage ratchet
+        run: go run github.com/vladopajic/go-test-coverage/v2@v2.18.3 --config .testcoverage.yml
       - name: Build
         run: go build ./cmd/bb
+      - name: Check vulnerabilities in release binary
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -mode=binary ./bb
+      - name: Verify third-party notices
+        run: |
+          go run ./scripts/licenses
+          git diff --exit-code -- THIRD_PARTY_LICENSES.txt
+
+  native:
+    name: Native smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test portable packages
+        run: go test ./internal/config ./internal/output ./internal/git ./pkg/bitbucket
+      - name: Build and smoke test
+        run: |
+          go build -o bb.exe ./cmd/bb
+          ./bb.exe --version
+          ./bb.exe --help
+          ./bb.exe completion powershell > completion.ps1
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          go-version: '1.24'
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
           cache: true
-
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa # v7.0.1
         with:
           version: v2.11.4

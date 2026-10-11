@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -195,7 +195,7 @@ func runPipelineList(cmd *cobra.Command, args []string) error {
 		allPipelines = allPipelines[:pipelineLimit]
 	}
 
-	if len(allPipelines) == 0 {
+	if len(allPipelines) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No pipelines found")
 		return nil
 	}
@@ -283,7 +283,7 @@ func runPipelineView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.JSON(pipeline)
 	}
 
@@ -587,7 +587,7 @@ func runPipelineSteps(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(steps) == 0 {
+	if len(steps) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No steps found")
 		return nil
 	}

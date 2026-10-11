@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ThomasRedstone/bb/generated/bitbucket"
-	"github.com/ThomasRedstone/bb/internal/output"
-	api "github.com/ThomasRedstone/bb/pkg/bitbucket"
+	"github.com/bitbucket-cli/bb/generated/bitbucket"
+	"github.com/bitbucket-cli/bb/internal/output"
+	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
 	"github.com/spf13/cobra"
 )
 
@@ -96,7 +96,7 @@ func runWorkspaceList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(workspaces) == 0 {
+	if len(workspaces) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No workspaces found")
 		return nil
 	}
@@ -163,7 +163,7 @@ func runWorkspaceView(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if jsonOutput {
+	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, ws)
 	}
 
@@ -217,7 +217,7 @@ func runWorkspaceMembers(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(members) == 0 {
+	if len(members) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No members found")
 		return nil
 	}
@@ -283,7 +283,7 @@ func runWorkspaceProjects(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if len(projects) == 0 {
+	if len(projects) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No projects found")
 		return nil
 	}
