@@ -1,11 +1,32 @@
 # Bitbucket API specification provenance and redistribution status
 
-Research date: 11 October 2026.
+Research date: 11 October 2026. Generation workflow updated: 13 October 2026.
+
+## Current distribution after the generation change
+
+The current tree no longer bundles `spec/openapi.yaml`. `make generate` now
+downloads the official OpenAPI JSON, verifies the checksum recorded in
+`scripts/apigen/source.json`, strips descriptive prose/examples and generates
+the committed client. Downloaded and intermediate schemas are temporary.
+The generated Go code is unchanged apart from comments compared with the
+previous client; upstream descriptive comments are removed.
+
+A prose-free structural compatibility patch preserves the original CLI contract
+because the current upstream schema omits or renames APIs it uses. The patch and
+generated code therefore still contain upstream-derived API structure. See
+[generation details](scripts/apigen/README.md).
+
+Historical commits and old tags still include the original full specification
+and descriptions. No history rewrite has been performed. These changes reduce
+current bundled documentation; they do not independently establish permission
+or resolve publication of the existing Git history. The enquiry below describes
+the original distribution and should be adapted to the chosen release scope
+before sending.
 
 ## Status
 
-An explicit redistribution license for the bundled Bitbucket Cloud OpenAPI
-specification and its copied descriptive text has not been established from the
+An explicit redistribution license for the historically bundled Bitbucket Cloud
+OpenAPI specification and its copied descriptive text has not been established from the
 official sources reviewed. This is an unresolved permission question, **not a
 conclusion that this project or its distribution is illegal**.
 
@@ -14,12 +35,14 @@ Atlassian-origin material. Attribution records provenance but does not replace
 an applicable license or permission. No Creative Commons or MIT license should
 be assigned to that material without supporting evidence.
 
-Public publication and release of the affected source and binaries should remain
-on hold pending clarification or a legal assessment of the intended distribution.
-The project owner can pursue either route. Nothing in this document implies that
+Publication of the existing Git history still needs a decision about this
+unresolved question. The new workflow also retains structural definitions in
+generated code and the compatibility patch; it does not establish their terms.
+The project owner can pursue clarification or a legal assessment of the intended
+distribution. Nothing in this document implies that
 Atlassian has been contacted or has approved this project.
 
-## Local artifacts examined
+## Historical artifacts examined during the original review
 
 SHA-256 hashes identify the exact local files examined, rather than asserting
 that they are byte-identical to today's upstream JSON:
@@ -29,12 +52,12 @@ that they are byte-identical to today's upstream JSON:
 | `spec/openapi.yaml` | `194e35109d20987b9a78a33fe89ab72f31db8dc003b08fe18aedc2341c180880` |
 | `generated/bitbucket/client.go` | `aedace461c2f2a484f7af7cd906d7ef0a05daf111fc19d80cdb303d6e0308289` |
 
-The local specification identifies itself as Bitbucket API version 2.0, contains
+The original specification identifies itself as Bitbucket API version 2.0, contains
 Atlassian descriptions and examples, and has no `info.license`. Its
 `info.termsOfService` points to
 <https://www.atlassian.com/legal/customer-agreement>.
 
-The Makefile regenerates Go types and client code with
+The original Makefile regenerated Go types and client code with
 `github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1` using this local
 specification. The permission question covers the specification itself and the
 generated file, including descriptions copied into generated comments. The

@@ -34,6 +34,8 @@ Thumbs.db
 
 # Downloaded specs (can be regenerated)
 spec/swagger.json
+spec/openapi.yaml
+spec/swagger.v3.json
 
 # Coverage reports
 coverage.html

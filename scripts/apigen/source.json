@@ -1,0 +1,5 @@
+{
+  "url": "https://dac-static.atlassian.com/cloud/bitbucket/swagger.v3.json",
+  "sha256": "f7d1dc58d6e22042c8cdb7d1ece18d97bf07590ef1e39e12dcd99715e9720c27",
+  "generator": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1"
+}

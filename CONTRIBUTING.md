@@ -126,15 +126,21 @@ GitHub's latest stable release endpoint and `go install ...@latest` omit preview
 
 ## Generated API client provenance
 
-`generated/bitbucket/client.go` records `oapi-codegen` v2.5.1 as its generator.
-The input is `spec/openapi.yaml`, a Bitbucket API specification carrying
-Atlassian contact details and terms-of-service metadata.
+Run `make generate` from the repository root to fetch the official schema pinned
+in `scripts/apigen/source.json`, verify its SHA-256, strip descriptive prose and
+examples, apply the structural compatibility patch, and regenerate the client
+with oapi-codegen v2.5.1. The raw input and intermediate schema are temporary.
+Only the generated Go client is committed; normal builds and `go install` do not
+fetch schemas or run generation.
 
-Run `make generate` to reproduce the checked-in client from this specification
-using the pinned generator, `types,client` generation and the `bitbucket` package.
-This command was verified to reproduce the existing client byte for byte.
-The original specification download and Swagger-to-OpenAPI conversion were not
-recorded. Do not claim that the project MIT licence grants rights over the
-upstream specification.
-Before public distribution, record the specification's source/version and verify
-its redistribution permission and required attribution with the upstream owner.
+For a previously downloaded copy, use
+`go run ./scripts/apigen -schema /path/to/swagger.v3.json`; verification remains
+mandatory. A changed upstream download fails without replacing the client.
+See [generation instructions](scripts/apigen/README.md) for updating the pin and
+reviewing compatibility. The compatibility patch preserves the established API
+structure because the current upstream schema omits APIs the CLI still uses.
+
+The original raw schema and generated descriptions remain in historical Git
+commits. Structural API definitions also remain in the patch and generated code.
+Do not claim that removing the bundled raw schema establishes redistribution
+permission; see [provenance](SPECIFICATION_PROVENANCE.md).

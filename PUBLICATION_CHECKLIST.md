@@ -5,9 +5,12 @@ it does not announce a published release.
 
 ## Publication gate
 
-- Resolve redistribution terms for the upstream specification and generated
-  descriptions. See [research and unsent enquiry](SPECIFICATION_PROVENANCE.md).
-  Removing a file from the current branch alone would leave it in Git history.
+- Resolve publication scope and redistribution terms for the retained API
+  structure and historical specification/descriptions. The current tree fetches
+  the schema during explicit generation and removes prose from generated code,
+  but the old material remains in Git history. See
+  [research and unsent enquiry](SPECIFICATION_PROVENANCE.md). These changes alone
+  do not clear the history question.
 
 ## Launch sequence
 

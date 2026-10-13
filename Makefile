@@ -37,7 +37,7 @@ clean:
 licenses:
 	go run ./scripts/licenses
 
-# Regenerate the checked-in client with its original pinned generator
+# Download the pinned upstream schema, remove prose, and regenerate the client
 .PHONY: generate
 generate:
-	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1 -generate types,client -package bitbucket -o generated/bitbucket/client.go spec/openapi.yaml
+	go run ./scripts/apigen

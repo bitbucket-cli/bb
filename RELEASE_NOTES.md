@@ -32,6 +32,10 @@ third-party licence notices; `checksums.txt` covers the release artifacts.
   checks each release archive against its checksum before updating the tap.
 - Dependency notice generation and the API client generator are reproducible
   using the documented development commands.
+- Explicit API client regeneration downloads a checksum-pinned official schema
+  into temporary storage and strips descriptive prose/examples. A structural
+  compatibility patch preserves the existing client; ordinary builds use its
+  committed Go code and do not download the schema.
 
 ## Preview scope
 
