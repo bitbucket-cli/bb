@@ -22,9 +22,10 @@ var (
 var repoBranchingModelCmd = &cobra.Command{
 	Use:   "branching-model [workspace/repo]",
 	Short: "Show or set the repository branching model",
-	Long: `Display the repository's branching model (development/production branches and
-branch types), or set the development/production branches with --set-development
-and --set-production.`,
+	Long: `Display the repository's effective branching model (development/production
+branches and branch types) and whether it is inherited from the project or set on
+the repository. A production branch that is absent or disabled shows as "(not set)".
+Set the development/production branches with --set-development and --set-production.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runRepoBranchingModel,
 }
@@ -93,7 +94,9 @@ func runRepoBranchingModel(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	resp, err := client.GetRepositoriesWorkspaceRepoSlugBranchingModel(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
+	// The effective model is what Bitbucket actually applies: the repo's own
+	// settings when it overrides the project, otherwise the project's.
+	resp, err := client.GetRepositoriesWorkspaceRepoSlugEffectiveBranchingModel(ctx, repoCtx.Workspace, repoCtx.RepoSlug)
 	if err != nil {
 		return fmt.Errorf("failed to get branching model: %w", err)
 	}
@@ -102,36 +105,88 @@ func runRepoBranchingModel(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var model struct {
-		Development struct {
-			Branch struct {
-				Name string `json:"name"`
-			} `json:"branch"`
-		} `json:"development"`
-		Production struct {
-			Branch struct {
-				Name string `json:"name"`
-			} `json:"branch"`
-		} `json:"production"`
-		BranchTypes []struct {
-			Kind   string `json:"kind"`
-			Prefix string `json:"prefix"`
-		} `json:"branch_types"`
-	}
+	var model branchingModel
 	if err := json.NewDecoder(resp.Body).Decode(&model); err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// override-settings says whether the repo inherits the project's
+	// branching model or uses its own. Fall back to "unknown" rather than
+	// failing the read if it isn't available.
+	model.Source = "unknown"
+	if oresp, err := client.GetRepositoriesWorkspaceRepoSlugOverrideSettings(ctx, repoCtx.Workspace, repoCtx.RepoSlug); err == nil {
+		defer oresp.Body.Close()
+		if oresp.StatusCode == 200 {
+			var ov map[string]interface{}
+			if json.NewDecoder(oresp.Body).Decode(&ov) == nil {
+				model.Source = branchingModelSource(ov)
+			}
+		}
 	}
 
 	if output.CurrentFormat == output.FormatJSON {
 		return output.Print(nil, nil, model)
 	}
-	fmt.Printf("Development: %s\n", model.Development.Branch.Name)
-	fmt.Printf("Production:  %s\n", model.Production.Branch.Name)
+	fmt.Printf("Source:      %s\n", model.Source)
+	fmt.Printf("Development: %s\n", branchOrUnset(model.Development))
+	fmt.Printf("Production:  %s\n", branchOrUnset(model.Production))
 	fmt.Printf("Branch types:\n")
 	for _, bt := range model.BranchTypes {
 		fmt.Printf("  - %s (%s)\n", bt.Kind, bt.Prefix)
 	}
 	return nil
+}
+
+type branchingModelBranch struct {
+	Name   string `json:"name,omitempty"`
+	Branch *struct {
+		Name string `json:"name"`
+	} `json:"branch,omitempty"`
+	UseMainbranch bool `json:"use_mainbranch,omitempty"`
+}
+
+type branchingModel struct {
+	Source      string                `json:"source"`
+	Development *branchingModelBranch `json:"development,omitempty"`
+	Production  *branchingModelBranch `json:"production,omitempty"`
+	BranchTypes []struct {
+		Kind   string `json:"kind"`
+		Prefix string `json:"prefix"`
+	} `json:"branch_types"`
+}
+
+// branchOrUnset renders a development/production entry, distinguishing a
+// configured branch from one that is not set (absent or disabled) or one
+// whose configured name does not exist as a branch.
+func branchOrUnset(b *branchingModelBranch) string {
+	switch {
+	case b == nil:
+		return "(not set)"
+	case b.Branch != nil && b.Branch.Name != "":
+		return b.Branch.Name
+	case b.UseMainbranch:
+		return "(main branch, not found)"
+	case b.Name != "":
+		return b.Name + " (branch not found)"
+	default:
+		return "(not set)"
+	}
+}
+
+// branchingModelSource maps the override-settings response to where the
+// effective branching model comes from. Despite the endpoint's name,
+// branching_model=true means the repo inherits the project's model and
+// false means the repo uses its own settings (checked against the
+// effective vs repo-level models on live repos).
+func branchingModelSource(ov map[string]interface{}) string {
+	v, ok := ov["branching_model"].(bool)
+	if !ok {
+		return "unknown"
+	}
+	if v {
+		return "project (inherited)"
+	}
+	return "repository (overrides project)"
 }
 
 func runRepoPermissions(cmd *cobra.Command, args []string) error {
