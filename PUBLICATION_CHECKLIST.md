@@ -48,7 +48,11 @@ identified. Automated secret scanning cannot guarantee absence of secrets.
   document manual keyring checks and Windows file-access expectations.
 - Add an opt-in live Bitbucket smoke suite using a disposable repository, with
   explicit authorization for mutation tests.
+  [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) defines the test matrix and evidence.
 - Document and extend structured output beyond list commands, including mutation
   results and error output.
+  Bulk PR/issue operations now have offline dry runs, full-batch ID validation
+  before authentication, and ordered JSON/CSV success/failure results. Other
+  mutation command families still need contract review.
 - Revisit default plaintext token mirroring as a separate compatibility decision.
   This preview documents the default and the keyring-only setting.

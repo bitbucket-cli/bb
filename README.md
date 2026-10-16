@@ -18,6 +18,31 @@ A powerful command-line interface for Bitbucket Cloud, enabling you to manage re
 - **Multiple Output Formats**: Table and JSON output support
 - **Shell Completions**: Bash, Zsh, Fish, and PowerShell
 
+## Bulk operation safety
+
+Bulk PR approval, decline and merge, and issue state updates support `--dry-run`:
+
+```bash
+bb pr bulk merge -R workspace/repo 12 15 --strategy squash --dry-run --json
+bb issue bulk -R workspace/repo 12 15 --state resolved --dry-run --json
+```
+
+Dry runs resolve the target and validate IDs/options without authentication or
+API requests. They cannot verify permissions, resource existence or whether a
+remote operation will succeed. IDs must be positive decimal integers; duplicates
+(including `12` and `012`) reject the batch before any API requests.
+
+Dry runs and executions support table, JSON and CSV. JSON returns an array in
+input order with `repository`, `resource`, `id` (a string), `action` and `status`
+(`planned`, `success` or `failed`), plus relevant options and failure `error` text.
+Merge options omitted from a plan inherit Bitbucket's defaults. `success` means
+the API request succeeded, not that an asynchronous merge finished.
+
+Execution can partially succeed: each attempted ID has a result and any failure
+produces a nonzero exit. Successful operations are not rolled back. Check remote
+state before retrying an ambiguous mutation. JSON/CSV results go to stdout;
+overall CLI errors and usage messages remain on stderr.
+
 ## Installation
 
 The planned public preview is **v0.3.0-rc.1**; it has not been published yet.

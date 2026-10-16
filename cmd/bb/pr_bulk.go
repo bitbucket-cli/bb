@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	generated "github.com/bitbucket-cli/bb/generated/bitbucket"
-	"github.com/bitbucket-cli/bb/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +44,9 @@ var (
 )
 
 func init() {
+	for _, cmd := range []*cobra.Command{prBulkApproveCmd, prBulkDeclineCmd, prBulkMergeCmd} {
+		cmd.Flags().Bool("dry-run", false, "Validate and display the batch without authentication or API requests")
+	}
 	prBulkMergeCmd.Flags().StringVar(&prBulkMergeStrategy, "strategy", "", "Merge strategy: merge_commit, squash, fast_forward, squash_fast_forward, rebase_fast_forward, rebase_merge (default: the repo's default)")
 	prBulkMergeCmd.Flags().BoolVar(&prBulkMergeCloseSource, "close-source-branch", false, "Delete each source branch after merging (use =false to keep them; default: each PR's setting)")
 	prBulkCmd.AddCommand(prBulkApproveCmd)
@@ -57,10 +58,6 @@ func init() {
 func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 	ctx := cmdCtx(cmd)
 
-	client, err := prNewAPIClient()
-	if err != nil {
-		return err
-	}
 	repoCtx, ids, err := repoAndIDs(args)
 	if err != nil {
 		return err
@@ -68,6 +65,17 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 	if len(ids) == 0 {
 		return fmt.Errorf("no pull request numbers given; usage: bb pr bulk %s [workspace/repo] <pr-number...>", action)
 	}
+
+	numbers, err := parseBulkIDs(ids, "PR")
+	if err != nil {
+		return err
+	}
+	switch action {
+	case "approve", "decline", "merge":
+	default:
+		return fmt.Errorf("unknown action %q", action)
+	}
+	results := bulkPlan(repoCtx.Workspace+"/"+repoCtx.RepoSlug, "pr", action, numbers)
 
 	// Built once and shared: every PR is merged with the same parameters.
 	mergeBody := generated.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdMergeJSONRequestBody{}
@@ -84,14 +92,24 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 		}
 	}
 
-	// Independent calls — run them concurrently.
-	errs := runConcurrent(ids, 8, func(idStr string) error {
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			return fmt.Errorf("invalid PR number %q", idStr)
+	for i := range results {
+		if mergeBody.MergeStrategy != nil {
+			results[i].Strategy = string(*mergeBody.MergeStrategy)
 		}
+		results[i].CloseSourceBranch = mergeBody.CloseSourceBranch
+	}
+	if dryRun, _ := cmd.Flags().GetBool("dry-run"); dryRun {
+		return reportBulk(results)
+	}
+	client, err := prNewAPIClient()
+	if err != nil {
+		return err
+	}
 
+	// Independent calls — run them concurrently.
+	errs := runConcurrent(numbers, 8, func(id int) error {
 		var resp *http.Response
+		var err error
 		switch action {
 		case "approve":
 			resp, err = client.PostRepositoriesWorkspaceRepoSlugPullrequestsPullRequestIdApprove(ctx, repoCtx.Workspace, repoCtx.RepoSlug, id)
@@ -112,18 +130,6 @@ func runPRBulk(cmd *cobra.Command, args []string, action string) error {
 		return nil
 	})
 
-	var failures int
-	for i, e := range errs {
-		if e != nil {
-			output.Error("PR #%s %s failed: %v", ids[i], action, e)
-			failures++
-		} else {
-			output.Success("PR #%s %s", ids[i], action)
-		}
-	}
-
-	if failures > 0 {
-		return fmt.Errorf("%d of %d pull requests failed", failures, len(ids))
-	}
-	return nil
+	completeBulk(results, errs)
+	return reportBulk(results)
 }
