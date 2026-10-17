@@ -44,8 +44,9 @@ for the commands you use; see [authentication](README.md#authentication).
 Automated tests use mock API servers. Live Bitbucket end-to-end verification
 needs account credentials and is not part of routine CI.
 
-OAuth's default token storage includes an owner-only plaintext file mirror.
-Select `token_store=keyring` if you want keyring-only persistence. OAuth client
+OAuth's default token storage is keyring-only, without an implicit plaintext
+mirror/fallback. Existing explicit `file`/`auto` choices and old token files are
+preserved. File storage requires explicit opt-in. OAuth client
 secrets entered interactively are saved to the owner-only configuration file;
 external credential commands or environment variables provide alternatives.
 

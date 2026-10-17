@@ -30,9 +30,8 @@ type Config struct {
 	Workspace           string `mapstructure:"workspace"`
 	OutputFormat        string `mapstructure:"output_format"`
 	Scopes              string `mapstructure:"scopes"`
-	// TokenStore selects how OAuth tokens are persisted: "auto" (default —
-	// keyring plus a 0600 file mirror so a dropped keyring entry can't log you
-	// out), "keyring" (keyring only), or "file" (0600 file only).
+	// TokenStore selects OAuth persistence: "keyring" (default, no file),
+	// "auto" (explicit keyring plus file mirror), or "file" (file only).
 	TokenStore string `mapstructure:"token_store"`
 }
 
@@ -73,6 +72,7 @@ func Init() error {
 
 	// Set defaults
 	viper.SetDefault("output_format", "table")
+	viper.SetDefault("token_store", "keyring")
 
 	// Environment variable bindings (BB_CLIENT_ID, BB_CLIENT_SECRET, etc.)
 	viper.SetEnvPrefix("BB")
@@ -169,12 +169,15 @@ func GetWorkspace() string {
 }
 
 // GetTokenStore returns the configured token storage mode ("auto", "keyring", or
-// "file"). BB_TOKEN_STORE env overrides the config file; empty means auto.
+// "file"). BB_TOKEN_STORE overrides the config file; empty means keyring-only.
 func GetTokenStore() string {
 	if v := os.Getenv("BB_TOKEN_STORE"); v != "" {
 		return v
 	}
-	return Get().TokenStore
+	if mode := Get().TokenStore; mode != "" {
+		return mode
+	}
+	return "keyring"
 }
 
 // GetScopes returns the configured OAuth scope level or explicit list

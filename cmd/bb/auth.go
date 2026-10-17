@@ -305,6 +305,9 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 
 	if !status.LoggedIn {
 		output.Info("Not logged in")
+		if status.LegacyTokenFile {
+			output.Info("An existing token file was left unchanged. Select 'bb config set token_store file' to use it, or log in to the system keyring.")
+		}
 		output.Info("")
 		output.Info("Options:")
 		output.Info("  • Run 'bb auth login' for OAuth authentication")

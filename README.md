@@ -4,8 +4,8 @@ A powerful command-line interface for Bitbucket Cloud, enabling you to manage re
 
 ## Features
 
-- **Authentication**: OAuth and API-token authentication; OAuth tokens use the system keyring with an owner-only plaintext file mirror by default (see [Token storage](#token-storage))
-- **Repositories**: List, view, clone, create, update, fork, and delete repositories
+- **Authentication**: OAuth and API-token authentication; OAuth tokens use the system keyring by default, with explicit file-storage options (see [Token storage](#token-storage))
+- **Repositories**: List, view, clone, create and update repositories; inspect forks
 - **Pull Requests**: Create, view, merge, approve, comment, and diff pull requests
 - **Branches**: Manage branches and branch restrictions
 - **Pipelines**: Trigger, monitor, and view pipeline logs
@@ -528,14 +528,31 @@ env var):
 
 | Mode | Behaviour |
 |------|-----------|
-| `auto` *(default)* | System keyring **plus** a `0600` file mirror at `~/.config/bb/tokens.json`. bb reads the keyring first and falls back to the file, re-seeding the keyring. This means a keyring that drops the entry (locking, session/collection eviction, headless boxes) can no longer log you out. |
-| `keyring` | System keyring only. Most secure at-rest, but you'll be logged out whenever the keyring drops the entry. |
+| `keyring` *(default)* | System keyring only; no plaintext token mirror or implicit file fallback. Writes are retried and read back to verify persistence. A locked/unavailable keyring is reported as a storage problem. A genuinely missing token requires login or explicit file-storage selection. |
+| `auto` *(explicit opt-in)* | System keyring **plus** a `0600` file mirror at `~/.config/bb/tokens.json`. Reads prefer the keyring, fall back to the file and re-seed the keyring. This is a recovery option, not a fix for the cause of a disappearing keyring entry. |
 | `file` | `0600` file only (`~/.config/bb/tokens.json`). Reliable and portable (works headless); tokens sit at-rest on disk. |
 
 ```bash
-bb config set token_store keyring   # opt into keyring-only
+bb config set token_store keyring   # default; no plaintext token mirror
+bb config set token_store file      # explicitly opt into file storage
 BB_TOKEN_STORE=file bb auth status  # one-off override
 ```
+
+Existing explicit `file` or `auto` configurations are preserved. With no explicit
+choice, an old token file is left untouched and is not imported or deleted;
+`bb auth status` explains how to select it or log in to the keyring. Selecting
+keyring-only storage does not erase an existing plaintext copy. `bb auth logout`
+clears both backends and reports backend deletion failures.
+
+For troubleshooting, set `BB_AUTH_DEBUG=1` when reproducing the problem. Auth
+events are appended to `~/.config/bb/auth-debug.log` with owner-only Unix
+permissions, timestamps and process IDs. They include retry attempts, successful
+write/read-back verification, selected storage mode and missing/unavailable
+backend classifications. Token values, backend error messages and OAuth error
+response bodies are not written to this log. Logging is opt-in and cannot
+reconstruct events from before it was enabled. OS keyring/session logs may still
+be needed to establish why an entry disappeared. Native Windows access controls
+should be checked separately; Unix permission bits are not a Windows ACL policy.
 
 ## Examples
 

@@ -524,3 +524,36 @@ func TestCredentialCommandFailure(t *testing.T) {
 		t.Errorf("failed command returned %q", got)
 	}
 }
+
+func TestTokenStoreDefaultAndExplicitChoices(t *testing.T) {
+	for _, tc := range []struct{ name, stored, env, want string }{
+		{"default", "", "", "keyring"},
+		{"existing file", "file", "", "file"},
+		{"existing mirror", "auto", "", "auto"},
+		{"environment", "file", "keyring", "keyring"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetState()
+			t.Cleanup(resetState)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+			t.Setenv("BB_TOKEN_STORE", tc.env)
+			if tc.stored != "" {
+				dir := filepath.Join(home, ".config", "bb")
+				if err := os.MkdirAll(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("token_store: "+tc.stored+"\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := Init(); err != nil {
+				t.Fatal(err)
+			}
+			if got := GetTokenStore(); got != tc.want {
+				t.Fatalf("mode %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

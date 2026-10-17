@@ -2,11 +2,14 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/zalando/go-keyring"
 
 	"github.com/bitbucket-cli/bb/internal/config"
 )
@@ -72,6 +75,9 @@ func GetCredential() (Credential, error) {
 	// Fall back to OAuth tokens
 	tokens, err := LoadTokens()
 	if err != nil {
+		if !errors.Is(err, keyring.ErrNotFound) && !errors.Is(err, os.ErrNotExist) {
+			return Credential{}, fmt.Errorf("cannot load OAuth credentials: %w", err)
+		}
 		return Credential{}, fmt.Errorf("not logged in: %w", err)
 	}
 
@@ -108,7 +114,7 @@ func RefreshAccessToken() (*TokenData, error) {
 	debugLog("RefreshAccessToken: start")
 	tokens, err := LoadTokens()
 	if err != nil {
-		debugLog("RefreshAccessToken: LoadTokens failed: %v", err)
+		debugLog("RefreshAccessToken: LoadTokens failed: %v", debugError(err))
 		return nil, fmt.Errorf("no tokens to refresh: %w", err)
 	}
 
@@ -146,7 +152,7 @@ func RefreshAccessToken() (*TokenData, error) {
 	if resp.StatusCode != http.StatusOK {
 		var errResp map[string]interface{}
 		json.NewDecoder(resp.Body).Decode(&errResp)
-		debugLog("RefreshAccessToken: token endpoint returned %d: %v", resp.StatusCode, errResp)
+		debugLog("RefreshAccessToken: token endpoint returned HTTP %d (response body omitted)", resp.StatusCode)
 		return nil, fmt.Errorf("token refresh failed: %v", errResp)
 	}
 
@@ -171,7 +177,7 @@ func RefreshAccessToken() (*TokenData, error) {
 
 	// Store the new tokens
 	if err := StoreTokens(&newTokens); err != nil {
-		debugLog("RefreshAccessToken: StoreTokens failed: %v", err)
+		debugLog("RefreshAccessToken: StoreTokens failed: %v", debugError(err))
 		return nil, fmt.Errorf("failed to store refreshed tokens: %w", err)
 	}
 
@@ -200,6 +206,7 @@ type AuthStatus struct {
 	Scopes          string
 	ExpiresAt       int64 // absolute Unix expiry of the OAuth access token (0 = unknown)
 	HasRefreshToken bool  // whether a refresh token is stored (enables silent renewal)
+	LegacyTokenFile bool  // an inactive token file exists; never implicitly imported
 }
 
 // GetStatus returns the current authentication status
@@ -220,7 +227,10 @@ func GetStatus() (*AuthStatus, error) {
 	// Check for OAuth tokens
 	tokens, err := LoadTokens()
 	if err != nil {
-		return &AuthStatus{LoggedIn: false, Method: AuthMethodNone}, nil
+		if !errors.Is(err, keyring.ErrNotFound) && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("cannot read stored OAuth credentials: %w", err)
+		}
+		return &AuthStatus{LoggedIn: false, Method: AuthMethodNone, LegacyTokenFile: storeMode() == storeKeyring && legacyTokenFilePresent()}, nil
 	}
 
 	if tokens.AccessToken == "" {

@@ -54,5 +54,6 @@ identified. Automated secret scanning cannot guarantee absence of secrets.
   Bulk PR/issue operations now have offline dry runs, full-batch ID validation
   before authentication, and ordered JSON/CSV success/failure results. Other
   mutation command families still need contract review.
-- Revisit default plaintext token mirroring as a separate compatibility decision.
-  This preview documents the default and the keyring-only setting.
+- Keyring-only is now the default following the maintainer's decision. Existing
+  explicit file/mirror choices are preserved; native keyring disappearance and
+  session/locking behavior still need dedicated-platform evidence.

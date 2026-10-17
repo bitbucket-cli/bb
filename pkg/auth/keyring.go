@@ -38,7 +38,7 @@ var ForceFileStorage = false
 const (
 	// storeAuto keeps the system keyring as the primary store but ALSO mirrors
 	// tokens to a 0600 file, and on read falls back to (and re-seeds from) that
-	// file. This is the default: it means a keyring that silently drops the entry
+	// file. This is an explicit opt-in: a keyring that silently drops the entry
 	// — locking, or storing into a session collection that later gets evicted —
 	// can no longer log the user out.
 	storeAuto = "auto"
@@ -54,12 +54,12 @@ const (
 var tokenStoreMode string
 
 // SetTokenStoreMode sets the token storage mode ("auto", "keyring", or "file").
-// Empty or unrecognised values resolve to auto.
+// Empty or unrecognised values resolve to keyring-only storage.
 func SetTokenStoreMode(m string) { tokenStoreMode = m }
 
 // storeMode resolves the effective token storage mode. ForceFileStorage (tests)
 // wins so a test run can never touch the real keyring. Otherwise config
-// (tokenStoreMode) then BB_TOKEN_STORE, defaulting to auto.
+// (tokenStoreMode) then BB_TOKEN_STORE, defaulting to keyring-only.
 func storeMode() string {
 	if ForceFileStorage {
 		return storeFile
@@ -69,10 +69,10 @@ func storeMode() string {
 		m = os.Getenv("BB_TOKEN_STORE")
 	}
 	switch m {
-	case storeFile, storeKeyring:
+	case storeFile, storeKeyring, storeAuto:
 		return m
 	default:
-		return storeAuto
+		return storeKeyring
 	}
 }
 
@@ -133,18 +133,16 @@ func keyringSetVerified(value string) error {
 		}
 		if err := keyring.Set(serviceName, "tokens", value); err != nil {
 			lastErr = err
-			debugLog("keyring.Set attempt %d failed: %v", i+1, err)
+			debugLog("keyring.Set attempt %d failed: %v", i+1, debugError(err))
 			continue
 		}
 		got, gerr := keyring.Get(serviceName, "tokens")
 		if gerr == nil && got == value {
-			if i > 0 {
-				debugLog("keyring.Set succeeded on attempt %d (after read-back verify)", i+1)
-			}
+			debugLog("keyring.Set verified on attempt %d (read-back matched)", i+1)
 			return nil
 		}
 		lastErr = fmt.Errorf("keyring write did not persist (read-back err=%v)", gerr)
-		debugLog("keyring.Set attempt %d: read-back verify FAILED (err=%v)", i+1, gerr)
+		debugLog("keyring.Set attempt %d: read-back verify FAILED (err=%v)", i+1, debugError(gerr))
 	}
 	return lastErr
 }
@@ -165,7 +163,7 @@ func keyringGetRetry() (string, error) {
 			return "", err
 		}
 		lastErr = err
-		debugLog("keyring.Get attempt %d transient error: %v", i+1, err)
+		debugLog("keyring.Get attempt %d transient error: %v", i+1, debugError(err))
 	}
 	return "", lastErr
 }
@@ -195,8 +193,8 @@ func StoreTokens(data *TokenData) error {
 
 	if mode == storeKeyring {
 		if keyErr != nil {
-			debugLog("StoreTokens: mode=keyring, keyring.Set FAILED after retries: %v", keyErr)
-			return fmt.Errorf("failed to store tokens in system keyring: %w", keyErr)
+			debugLog("StoreTokens: mode=keyring, keyring.Set FAILED after retries: %v", debugError(keyErr))
+			return fmt.Errorf("failed to store tokens in system keyring: %w; unlock or repair the keyring, or explicitly select file storage with 'bb config set token_store file'", keyErr)
 		}
 		debugLog("StoreTokens: mode=keyring -> stored to KEYRING (access_len=%d refresh_present=%v expires_at=%d)", len(data.AccessToken), data.RefreshToken != "", data.ExpiresAt)
 		return nil
@@ -210,13 +208,13 @@ func StoreTokens(data *TokenData) error {
 		debugLog("StoreTokens: mode=auto -> stored to KEYRING + file mirror (access_len=%d refresh_present=%v expires_at=%d)", len(data.AccessToken), data.RefreshToken != "", data.ExpiresAt)
 		return nil
 	case keyErr == nil:
-		debugLog("StoreTokens: mode=auto -> KEYRING ok, file mirror failed: %v", fileErr)
+		debugLog("StoreTokens: mode=auto -> KEYRING ok, file mirror failed: %v", debugError(fileErr))
 		return nil
 	case fileErr == nil:
-		debugLog("StoreTokens: mode=auto -> keyring failed (%v), FILE mirror ok", keyErr)
+		debugLog("StoreTokens: mode=auto -> keyring failed (%v), FILE mirror ok", debugError(keyErr))
 		return nil
 	default:
-		debugLog("StoreTokens: mode=auto -> BOTH backends failed (keyring=%v file=%v)", keyErr, fileErr)
+		debugLog("StoreTokens: mode=auto -> BOTH backends failed (keyring=%v file=%v)", debugError(keyErr), debugError(fileErr))
 		return fmt.Errorf("failed to store tokens (keyring: %v; file: %v)", keyErr, fileErr)
 	}
 }
@@ -229,7 +227,7 @@ func LoadTokens() (*TokenData, error) {
 	if mode == storeFile {
 		data, err := loadTokensFromFile()
 		if err != nil {
-			debugLog("LoadTokens: mode=file, load failed: %v", err)
+			debugLog("LoadTokens: mode=file, load failed: %v", debugError(err))
 			return nil, err
 		}
 		debugLog("LoadTokens: loaded from FILE (mode=file)")
@@ -251,22 +249,26 @@ func LoadTokens() (*TokenData, error) {
 	if mode == storeKeyring {
 		// keyring-only: no file fallback. Distinguish "not logged in" from
 		// "keyring unavailable" so we don't loop the user through re-login.
-		debugLog("LoadTokens: mode=keyring, keyring.Get error notFound=%v err=%v", notFound, err)
+		debugLog("LoadTokens: mode=keyring, keyring.Get error notFound=%v err=%v", notFound, debugError(err))
 		if notFound {
-			return nil, err
+			if legacyTokenFilePresent() {
+				debugLog("LoadTokens: keyring entry missing; legacy file exists and was left unchanged (no implicit fallback)")
+				return nil, fmt.Errorf("system keyring has no OAuth token; an existing token file was left unchanged; explicitly select 'bb config set token_store file' to use it, or run 'bb auth login' for keyring storage: %w", err)
+			}
+			return nil, fmt.Errorf("system keyring has no OAuth token; run 'bb auth login': %w", err)
 		}
-		return nil, fmt.Errorf("system keyring unavailable (%v); no fallback token file — this is a keyring problem, not a login one", err)
+		return nil, fmt.Errorf("system keyring unavailable: %w; unlock or repair it, or explicitly select file storage with 'bb config set token_store file'; no implicit file fallback", err)
 	}
 
 	// auto: fall back to the file mirror.
-	debugLog("LoadTokens: keyring miss notFound=%v err=%v -> file mirror", notFound, err)
+	debugLog("LoadTokens: keyring miss notFound=%v err=%v -> file mirror", notFound, debugError(err))
 	data, ferr := loadTokensFromFile()
 	if ferr != nil {
 		if notFound {
-			debugLog("LoadTokens: keyring not-found and no file mirror (not logged in): %v", ferr)
+			debugLog("LoadTokens: keyring not-found and no file mirror (not logged in): %v", debugError(ferr))
 			return nil, ferr
 		}
-		debugLog("LoadTokens: keyring UNAVAILABLE and no file mirror: %v", err)
+		debugLog("LoadTokens: keyring UNAVAILABLE and no file mirror: %v", debugError(err))
 		return nil, fmt.Errorf("system keyring unavailable (%v); no fallback token file — this is a keyring problem, not a login one", err)
 	}
 
@@ -275,10 +277,20 @@ func LoadTokens() (*TokenData, error) {
 	debugLog("LoadTokens: loaded from FILE mirror; re-seeding keyring")
 	if reseed, merr := json.Marshal(data); merr == nil {
 		if serr := keyring.Set(serviceName, "tokens", string(reseed)); serr != nil {
-			debugLog("LoadTokens: keyring re-seed failed: %v", serr)
+			debugLog("LoadTokens: keyring re-seed failed: %v", debugError(serr))
 		}
 	}
 	return data, nil
+}
+
+// Check existence without reading, importing or deleting legacy credentials.
+func legacyTokenFilePresent() bool {
+	path, err := tokenFilePath()
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }
 
 // DeleteTokens clears every production backend, regardless of the current mode.

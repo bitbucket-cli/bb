@@ -1,11 +1,36 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/zalando/go-keyring"
 )
+
+// Persistent diagnostics classify errors without storing backend messages or
+// response bodies, which may contain credential values supplied by a provider.
+func debugError(err error) string {
+	switch {
+	case err == nil:
+		return "none"
+	case errors.Is(err, keyring.ErrNotFound):
+		return "not-found"
+	case errors.Is(err, os.ErrNotExist):
+		return "file-not-found"
+	case errors.Is(err, os.ErrPermission):
+		return "permission-denied"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	default:
+		return fmt.Sprintf("backend-error(%T)", err)
+	}
+}
 
 // DebugLogPath is where token-operation traces are written when BB_AUTH_DEBUG is set.
 func DebugLogPath() string {
@@ -38,6 +63,9 @@ func debugLog(format string, args ...interface{}) {
 		return
 	}
 	defer f.Close()
+	if err := f.Chmod(0600); err != nil {
+		return
+	}
 	ts := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
 	fmt.Fprintf(f, "%s pid=%d %s\n", ts, os.Getpid(), fmt.Sprintf(format, args...))
 }
