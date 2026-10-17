@@ -87,26 +87,26 @@ func runCommitReport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get reports: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			Title      string `json:"title"`
-			Reporter   string `json:"reporter"`
-			ReportType string `json:"report_type"`
-			Result     string `json:"result"`
-			Details    string `json:"details"`
-		} `json:"values"`
+	type listItem struct {
+		Title      string `json:"title"`
+		Reporter   string `json:"reporter"`
+		ReportType string `json:"report_type"`
+		Result     string `json:"result"`
+		Details    string `json:"details"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No reports found")
 		return nil
 	}
 	headers := []string{"RESULT", "TITLE", "REPORTER", "TYPE"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, r := range page.Values {
+	for _, r := range items {
 		rows = append(rows, []string{r.Result, output.Truncate(r.Title, 40), r.Reporter, r.ReportType})
 		jsonData = append(jsonData, map[string]interface{}{"result": r.Result, "title": r.Title, "reporter": r.Reporter, "type": r.ReportType, "details": r.Details})
 	}

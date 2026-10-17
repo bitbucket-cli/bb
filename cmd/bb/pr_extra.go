@@ -270,26 +270,26 @@ func runPRTasksList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list tasks: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			ID      int    `json:"id"`
-			State   string `json:"state"`
-			Content struct {
-				Raw string `json:"raw"`
-			} `json:"content"`
-		} `json:"values"`
+	type listItem struct {
+		ID      int    `json:"id"`
+		State   string `json:"state"`
+		Content struct {
+			Raw string `json:"raw"`
+		} `json:"content"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No tasks")
 		return nil
 	}
 	headers := []string{"ID", "STATE", "TASK"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, t := range page.Values {
+	for _, t := range items {
 		rows = append(rows, []string{strconv.Itoa(t.ID), t.State, output.Truncate(t.Content.Raw, 50)})
 		jsonData = append(jsonData, map[string]interface{}{"id": t.ID, "state": t.State, "task": t.Content.Raw})
 	}

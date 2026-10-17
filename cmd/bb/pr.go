@@ -463,15 +463,14 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 	} else {
 		defer defaultResp.Body.Close()
 		if defaultResp.StatusCode == 200 {
-			var result struct {
-				Values []struct {
-					UUID string `json:"uuid"`
-				} `json:"values"`
+			type defaultReviewerRef struct {
+				UUID string `json:"uuid"`
 			}
-			if err := json.NewDecoder(defaultResp.Body).Decode(&result); err != nil {
-				output.Info("Warning: failed to parse default reviewers: %v", err)
+			defaults, err := fetchAllPages[defaultReviewerRef](ctx, client, defaultResp)
+			if err != nil {
+				return fmt.Errorf("failed to fetch all default reviewers: %w", err)
 			} else {
-				for _, dr := range result.Values {
+				for _, dr := range defaults {
 					if selfUUID != "" && dr.UUID == selfUUID {
 						continue
 					}

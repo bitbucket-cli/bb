@@ -22,8 +22,9 @@ func isolatedKeyringPolicy(t *testing.T) {
 	t.Cleanup(func() { ForceFileStorage, tokenStoreMode = oldForce, oldMode; keyring.MockInit() })
 }
 
-func TestDefaultStorageNeverCreatesPlaintextMirror(t *testing.T) {
+func TestExplicitKeyringStorageNeverCreatesPlaintextMirror(t *testing.T) {
 	isolatedKeyringPolicy(t)
+	SetTokenStoreMode("keyring")
 	if storeMode() != storeKeyring {
 		t.Fatalf("default mode %s", storeMode())
 	}
@@ -45,6 +46,7 @@ func TestDefaultStorageNeverCreatesPlaintextMirror(t *testing.T) {
 
 func TestLegacyFileRequiresExplicitOptInAndIsPreserved(t *testing.T) {
 	isolatedKeyringPolicy(t)
+	SetTokenStoreMode("keyring")
 	if err := storeTokensToFile(&TokenData{AccessToken: "legacy-dummy"}); err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +74,7 @@ func TestLegacyFileRequiresExplicitOptInAndIsPreserved(t *testing.T) {
 
 func TestVerifiedEntryLaterMissingIsVisibleWithoutFallback(t *testing.T) {
 	isolatedKeyringPolicy(t)
+	SetTokenStoreMode("keyring")
 	t.Setenv("BB_AUTH_DEBUG", "1")
 	if err := StoreTokens(&TokenData{AccessToken: "dummy-disappearing-token"}); err != nil {
 		t.Fatal(err)
@@ -94,6 +97,7 @@ func TestVerifiedEntryLaterMissingIsVisibleWithoutFallback(t *testing.T) {
 
 func TestKeyringFailuresAreVisibleAndDebugOmitsBackendSecrets(t *testing.T) {
 	isolatedKeyringPolicy(t)
+	SetTokenStoreMode("keyring")
 	t.Setenv("BB_AUTH_DEBUG", "1")
 	secret := "dummy-backend-credential-MUST-NOT-BE-LOGGED"
 	locked := errors.New("keyring unavailable: " + secret)
@@ -117,5 +121,28 @@ func TestKeyringFailuresAreVisibleAndDebugOmitsBackendSecrets(t *testing.T) {
 	}
 	if strings.Contains(string(log), secret) || !strings.Contains(string(log), "attempt 3") || !strings.Contains(string(log), "backend-error") {
 		t.Fatalf("unsafe or missing debug classification: %q", log)
+	}
+}
+
+func TestDefaultMirrorRecoversMissingKeyringEntry(t *testing.T) {
+	isolatedKeyringPolicy(t)
+	if storeMode() != storeAuto {
+		t.Fatalf("default mode %s", storeMode())
+	}
+	if err := StoreTokens(&TokenData{AccessToken: "dummy-default-mirror", RefreshToken: "dummy-refresh"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadTokensFromFile(); err != nil {
+		t.Fatalf("default mirror missing: %v", err)
+	}
+	if err := keyring.Delete(serviceName, "tokens"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadTokens()
+	if err != nil || got.AccessToken != "dummy-default-mirror" {
+		t.Fatalf("fallback failed: %v", err)
+	}
+	if _, err := keyring.Get(serviceName, "tokens"); err != nil {
+		t.Fatalf("keyring not re-seeded: %v", err)
 	}
 }

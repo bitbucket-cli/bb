@@ -32,7 +32,7 @@ object keys (arrays are replaced whole). It preserves the established structural
 contract: paths, operation IDs, models, parameters and validation constraints.
 It contains no copied descriptive documentation or examples. It was derived by
 comparing the prose-stripped current upstream schema with the prose-stripped
-original input from commit `0b42f9d`. This is retained API structure, not a claim
+original private-era input. This is retained API structure, not a claim
 that all upstream-derived material has been eliminated.
 
 Initial regeneration was checked against the previous generated file using a Go
@@ -59,7 +59,8 @@ remain available to the generator.
 ## Provenance
 
 The upstream raw schema is no longer bundled in the current tree, and upstream
-descriptions are no longer embedded in the generated Go comments. Historical Git
-commits still contain them. The structural patch and generated code also remain
-derived from the API definitions. This change does not establish a redistribution
-licence or rewrite history; see `SPECIFICATION_PROVENANCE.md` at the repository root.
+descriptions are no longer embedded in the generated Go comments. The public
+history is cleaned of the old bundled specification and copied generated
+descriptions; the original history is retained in a private backup.
+The structural patch and generated code remain derived from the API definitions.
+See `SPECIFICATION_PROVENANCE.md` at the repository root.

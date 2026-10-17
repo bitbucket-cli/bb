@@ -61,25 +61,25 @@ func runDeployVarList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list variables: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			UUID    string `json:"uuid"`
-			Key     string `json:"key"`
-			Value   string `json:"value"`
-			Secured bool   `json:"secured"`
-		} `json:"values"`
+	type listItem struct {
+		UUID    string `json:"uuid"`
+		Key     string `json:"key"`
+		Value   string `json:"value"`
+		Secured bool   `json:"secured"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No variables found")
 		return nil
 	}
 	headers := []string{"KEY", "VALUE", "SECURED", "UUID"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, v := range page.Values {
+	for _, v := range items {
 		val := v.Value
 		if v.Secured {
 			val = "********"

@@ -84,24 +84,24 @@ func runProjectDeployKeyList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list deploy keys: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			ID    int    `json:"id"`
-			Label string `json:"label"`
-			Key   string `json:"key"`
-		} `json:"values"`
+	type listItem struct {
+		ID    int    `json:"id"`
+		Label string `json:"label"`
+		Key   string `json:"key"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No deploy keys")
 		return nil
 	}
 	headers := []string{"ID", "LABEL", "KEY"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, k := range page.Values {
+	for _, k := range items {
 		rows = append(rows, []string{fmt.Sprintf("%d", k.ID), k.Label, output.Truncate(k.Key, 40)})
 		jsonData = append(jsonData, map[string]interface{}{"id": k.ID, "label": k.Label, "key": k.Key})
 	}
@@ -207,30 +207,30 @@ func runProjectPermissions(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list permissions: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			Permission string `json:"permission"`
-			User       *struct {
-				DisplayName string `json:"display_name"`
-				UUID        string `json:"uuid"`
-			} `json:"user"`
-			Group *struct {
-				Name string `json:"name"`
-				Slug string `json:"slug"`
-			} `json:"group"`
-		} `json:"values"`
+	type listItem struct {
+		Permission string `json:"permission"`
+		User       *struct {
+			DisplayName string `json:"display_name"`
+			UUID        string `json:"uuid"`
+		} `json:"user"`
+		Group *struct {
+			Name string `json:"name"`
+			Slug string `json:"slug"`
+		} `json:"group"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No explicit permissions")
 		return nil
 	}
 	headers := []string{"PERMISSION", "SUBJECT", "ID"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, p := range page.Values {
+	for _, p := range items {
 		subject, id := "", ""
 		if p.User != nil {
 			subject, id = p.User.DisplayName, p.User.UUID

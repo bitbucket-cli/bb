@@ -167,24 +167,24 @@ func runProjectReviewersList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list reviewers: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			DisplayName string `json:"display_name"`
-			UUID        string `json:"uuid"`
-			AccountID   string `json:"account_id"`
-		} `json:"values"`
+	type listItem struct {
+		DisplayName string `json:"display_name"`
+		UUID        string `json:"uuid"`
+		AccountID   string `json:"account_id"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No default reviewers")
 		return nil
 	}
 	headers := []string{"NAME", "UUID"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, u := range page.Values {
+	for _, u := range items {
 		rows = append(rows, []string{u.DisplayName, u.UUID})
 		jsonData = append(jsonData, map[string]interface{}{"display_name": u.DisplayName, "uuid": u.UUID, "account_id": u.AccountID})
 	}

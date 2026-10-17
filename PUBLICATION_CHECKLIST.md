@@ -5,16 +5,16 @@ it does not announce a published release.
 
 ## Publication gate
 
-- Resolve publication scope and redistribution terms for the retained API
-  structure and historical specification/descriptions. The current tree fetches
-  the schema during explicit generation and removes prose from generated code,
-  but the old material remains in Git history. See
-  [research and unsent enquiry](SPECIFICATION_PROVENANCE.md). These changes alone
-  do not clear the history question.
+- The maintainer authorized a public preview following history cleanup. The
+  public history must omit the old bundled schema and copied descriptions.
+  Generation downloads the schema temporarily; generated code and structural
+  compatibility definitions remain distributed. See
+  [generation provenance](SPECIFICATION_PROVENANCE.md).
 
 ## Launch sequence
 
-1. Obtain and record the permission or legal assessment resolving the gate.
+1. Verify the cleaned public history and remove old private-era refs/artifacts
+   from the public publication scope, retaining a private backup.
 2. Verify hosted CI passes on the intended release commit.
 3. Confirm legacy private-era releases remain drafts; retain their assets/tags.
 4. Make `bitbucket-cli/bb` public before pushing the preview tag, so the release
@@ -54,6 +54,6 @@ identified. Automated secret scanning cannot guarantee absence of secrets.
   Bulk PR/issue operations now have offline dry runs, full-batch ID validation
   before authentication, and ordered JSON/CSV success/failure results. Other
   mutation command families still need contract review.
-- Keyring-only is now the default following the maintainer's decision. Existing
-  explicit file/mirror choices are preserved; native keyring disappearance and
-  session/locking behavior still need dedicated-platform evidence.
+- Keyring plus plaintext recovery mirroring is the default following the
+  maintainer's decision, prominently disclosed in README. Native disappearance
+  and session/locking behavior still need dedicated-platform evidence.

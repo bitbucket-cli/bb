@@ -19,9 +19,13 @@ import (
 // The element type T is provided by the caller (often a function-local named
 // type), so each command keeps its own value shape.
 func fetchAllPages[T any](ctx context.Context, client *api.Client, first *http.Response) ([]T, error) {
+	if first.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API error fetching first page: %s", first.Status)
+	}
 	type page struct {
 		Values []T    `json:"values"`
 		Next   string `json:"next"`
+		Size   *int   `json:"size"`
 	}
 
 	var all []T
@@ -31,8 +35,13 @@ func fetchAllPages[T any](ctx context.Context, client *api.Client, first *http.R
 	}
 	all = append(all, p.Values...)
 	next := p.Next
+	seen := make(map[string]bool)
 
 	for next != "" {
+		if seen[next] {
+			return nil, fmt.Errorf("API returned a repeated pagination link")
+		}
+		seen[next] = true
 		resp, err := client.GetURL(ctx, next)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch next page: %w", err)
@@ -49,6 +58,9 @@ func fetchAllPages[T any](ctx context.Context, client *api.Client, first *http.R
 		}
 		all = append(all, np.Values...)
 		next = np.Next
+	}
+	if p.Size != nil && len(all) < *p.Size {
+		return nil, fmt.Errorf("incomplete API results: received %d of %d items but no next link was supplied", len(all), *p.Size)
 	}
 	return all, nil
 }

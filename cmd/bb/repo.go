@@ -250,6 +250,10 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("failed to fetch next page: %w", err)
 			}
+			if nextResp.StatusCode != http.StatusOK {
+				nextResp.Body.Close()
+				return fmt.Errorf("API error fetching next page: %s", nextResp.Status)
+			}
 
 			// Reset result before decoding - JSON decoder doesn't zero fields
 			// that are absent in the response, which would cause infinite loop
@@ -280,10 +284,9 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "\033[2K\r") // Clear line
 		}
 
-		// Apply limit if specified
-		if repoLimit > 0 && len(allRepos) > repoLimit {
-			allRepos = allRepos[:repoLimit]
-		}
+	}
+	if repoLimit > 0 && len(allRepos) > repoLimit {
+		allRepos = allRepos[:repoLimit]
 	}
 
 	if len(allRepos) == 0 && output.CurrentFormat == output.FormatTable {
@@ -332,8 +335,12 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show message if there are more results not displayed
-	if !shouldPaginate && hasMoreResults && totalCount > 0 {
-		fmt.Fprintf(os.Stderr, "\nShowing %d of %d repositories. Use --all to fetch all.\n", len(allRepos), totalCount)
+	if !shouldPaginate && hasMoreResults {
+		if totalCount > 0 {
+			fmt.Fprintf(os.Stderr, "\nShowing %d of %d repositories. Use --all to fetch all.\n", len(allRepos), totalCount)
+		} else {
+			fmt.Fprintf(os.Stderr, "\nShowing the first %d repositories. Use --all to fetch all.\n", len(allRepos))
+		}
 	}
 
 	return nil

@@ -527,7 +527,7 @@ func TestCredentialCommandFailure(t *testing.T) {
 
 func TestTokenStoreDefaultAndExplicitChoices(t *testing.T) {
 	for _, tc := range []struct{ name, stored, env, want string }{
-		{"default", "", "", "keyring"},
+		{"default", "", "", "auto"},
 		{"existing file", "file", "", "file"},
 		{"existing mirror", "auto", "", "auto"},
 		{"environment", "file", "keyring", "keyring"},

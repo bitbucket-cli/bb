@@ -16,6 +16,9 @@ execution. Start with reads. Use uniquely named test resources and record their
 IDs. Clean up only resources created by the test. Deleting existing resources,
 changing settings/permissions, merging and running pipelines need separate
 explicit authorization. A failure is not permission to widen credential scopes.
+Before provisioning a disposable repository, check cleanup access: OAuth
+`repository:admin` does not imply `repository:delete`. Arrange owner cleanup
+before creation if the available credential cannot delete the repository.
 
 ## Acceptance matrix
 
@@ -81,11 +84,12 @@ read showed the single successful run. No duplicate was triggered. Future live
 harnesses should use bounded read-after-write polling rather than blindly retry
 mutation requests.
 
-Cleanup is **pending owner deletion**: DELETE returned HTTP 403 because the
+Cleanup is **complete**: DELETE initially returned HTTP 403 because the
 current OAuth grant lacks the separate `repository:delete` scope. No browser was
 available for UI cleanup. Pipelines were disabled after completion and the local
 temporary helper source was removed. No OAuth consumer scopes were broadened.
-The private cleanup record contains the exact created repository and UUID.
+The owner subsequently deleted the repository; an authenticated read confirmed
+HTTP 404. The private cleanup record retains the created repository and UUID.
 
 This pass does not establish native OS-keyring reliability, full OAuth
 expiry/revocation behavior, all legacy/admin APIs, published installation/upgrade

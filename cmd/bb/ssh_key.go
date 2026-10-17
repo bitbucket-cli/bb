@@ -78,25 +78,25 @@ func runSSHKeyList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list SSH keys: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			UUID    string `json:"uuid"`
-			Key     string `json:"key"`
-			Label   string `json:"label"`
-			Comment string `json:"comment"`
-		} `json:"values"`
+	type listItem struct {
+		UUID    string `json:"uuid"`
+		Key     string `json:"key"`
+		Label   string `json:"label"`
+		Comment string `json:"comment"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No SSH keys found")
 		return nil
 	}
 	headers := []string{"LABEL", "KEY", "UUID"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, k := range page.Values {
+	for _, k := range items {
 		rows = append(rows, []string{k.Label, output.Truncate(k.Key, 40), k.UUID})
 		jsonData = append(jsonData, map[string]interface{}{"label": k.Label, "key": k.Key, "comment": k.Comment, "uuid": k.UUID})
 	}

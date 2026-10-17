@@ -38,7 +38,7 @@ var ForceFileStorage = false
 const (
 	// storeAuto keeps the system keyring as the primary store but ALSO mirrors
 	// tokens to a 0600 file, and on read falls back to (and re-seeds from) that
-	// file. This is an explicit opt-in: a keyring that silently drops the entry
+	// file. This is the default recovery policy: a keyring that silently drops the entry
 	// — locking, or storing into a session collection that later gets evicted —
 	// can no longer log the user out.
 	storeAuto = "auto"
@@ -54,12 +54,12 @@ const (
 var tokenStoreMode string
 
 // SetTokenStoreMode sets the token storage mode ("auto", "keyring", or "file").
-// Empty or unrecognised values resolve to keyring-only storage.
+// Empty selects auto; unrecognised values fail closed to keyring-only storage.
 func SetTokenStoreMode(m string) { tokenStoreMode = m }
 
 // storeMode resolves the effective token storage mode. ForceFileStorage (tests)
 // wins so a test run can never touch the real keyring. Otherwise config
-// (tokenStoreMode) then BB_TOKEN_STORE, defaulting to keyring-only.
+// (tokenStoreMode) then BB_TOKEN_STORE, defaulting to auto.
 func storeMode() string {
 	if ForceFileStorage {
 		return storeFile
@@ -67,6 +67,9 @@ func storeMode() string {
 	m := tokenStoreMode
 	if m == "" {
 		m = os.Getenv("BB_TOKEN_STORE")
+	}
+	if m == "" {
+		return storeAuto
 	}
 	switch m {
 	case storeFile, storeKeyring, storeAuto:

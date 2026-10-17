@@ -395,20 +395,19 @@ func selectBranchInteractively(cmd *cobra.Command, client *api.Client, repoCtx *
 		return "", fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	var result struct {
-		Values []struct {
-			Name string `json:"name"`
-		} `json:"values"`
+	type branchChoice struct {
+		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	branches, err := fetchAllPages[branchChoice](cmdCtx(cmd), client, resp)
+	if err != nil {
 		return "", err
 	}
-	if len(result.Values) == 0 {
+	if len(branches) == 0 {
 		return "", fmt.Errorf("no branches found")
 	}
 
-	names := make([]string, len(result.Values))
-	for i, b := range result.Values {
+	names := make([]string, len(branches))
+	for i, b := range branches {
 		names[i] = b.Name
 	}
 	return interactive.SelectString("Select a branch to delete", names)

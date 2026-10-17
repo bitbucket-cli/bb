@@ -88,21 +88,10 @@ func runPRListAll(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list pull requests: %w", err)
 	}
-	page, err := decodePRPage(resp)
+	defer resp.Body.Close()
+	all, err := fetchAllPages[wsPR](ctx, client, resp)
 	if err != nil {
 		return err
-	}
-	all := page.Values
-
-	for page.Next != "" {
-		pageResp, err := client.GetURL(ctx, page.Next)
-		if err != nil {
-			return fmt.Errorf("failed to fetch next page: %w", err)
-		}
-		if page, err = decodePRPage(pageResp); err != nil {
-			return err
-		}
-		all = append(all, page.Values...)
 	}
 
 	if len(all) == 0 && output.CurrentFormat == output.FormatTable {
@@ -138,23 +127,6 @@ func runPRListAll(cmd *cobra.Command, args []string) error {
 		})
 	}
 	return output.Print(headers, rows, jsonData)
-}
-
-type prPage struct {
-	Values []wsPR `json:"values"`
-	Next   string `json:"next"`
-}
-
-func decodePRPage(resp *http.Response) (*prPage, error) {
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error: %s", resp.Status)
-	}
-	var page prPage
-	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-	return &page, nil
 }
 
 // currentUserUUID resolves the authenticated user's UUID via GET /2.0/user.

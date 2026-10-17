@@ -73,23 +73,23 @@ func runGPGKeyList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list GPG keys: %w", err)
 	}
-	var page struct {
-		Values []struct {
-			Fingerprint string `json:"fingerprint"`
-			Name        string `json:"name"`
-		} `json:"values"`
+	type listItem struct {
+		Fingerprint string `json:"fingerprint"`
+		Name        string `json:"name"`
 	}
-	if err := decodeJSON(resp, &page); err != nil {
+	defer resp.Body.Close()
+	items, err := fetchAllPages[listItem](ctx, client, resp)
+	if err != nil {
 		return err
 	}
-	if len(page.Values) == 0 && output.CurrentFormat == output.FormatTable {
+	if len(items) == 0 && output.CurrentFormat == output.FormatTable {
 		output.Info("No GPG keys found")
 		return nil
 	}
 	headers := []string{"FINGERPRINT", "NAME"}
 	var rows [][]string
 	var jsonData []map[string]interface{}
-	for _, k := range page.Values {
+	for _, k := range items {
 		rows = append(rows, []string{k.Fingerprint, k.Name})
 		jsonData = append(jsonData, map[string]interface{}{"fingerprint": k.Fingerprint, "name": k.Name})
 	}

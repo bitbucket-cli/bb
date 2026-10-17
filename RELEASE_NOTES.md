@@ -22,6 +22,12 @@ third-party licence notices; `checksums.txt` covers the release artifacts.
 
 ## Changes since the private releases
 
+- Restored default keyring plus plaintext recovery mirroring, prominently disclosed
+  in README while disappearance remains under investigation.
+- Pagination audit fixes cover keys, variables, hooks, permissions, reviewers,
+  tasks, reports and branch selection. Regression tests cross 100 workspace PRs
+  and reject incomplete results rather than silently producing wrong counts.
+
 - Hardened OAuth callbacks, credential handling, token storage permissions and
   authenticated API request destinations.
 - Improved positional argument checks, repository inference and global output
@@ -44,9 +50,10 @@ for the commands you use; see [authentication](README.md#authentication).
 Automated tests use mock API servers. Live Bitbucket end-to-end verification
 needs account credentials and is not part of routine CI.
 
-OAuth's default token storage is keyring-only, without an implicit plaintext
-mirror/fallback. Existing explicit `file`/`auto` choices and old token files are
-preserved. File storage requires explicit opt-in. OAuth client
+OAuth's default token storage uses the keyring plus an owner-only plaintext
+recovery mirror at `~/.config/bb/tokens.json`. Keyring loss remains under
+investigation; choose `token_store=keyring` to opt out of file mirroring/fallback.
+Existing explicit storage choices are preserved. OAuth client
 secrets entered interactively are saved to the owner-only configuration file;
 external credential commands or environment variables provide alternatives.
 

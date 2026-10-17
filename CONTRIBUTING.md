@@ -140,7 +140,7 @@ See [generation instructions](scripts/apigen/README.md) for updating the pin and
 reviewing compatibility. The compatibility patch preserves the established API
 structure because the current upstream schema omits APIs the CLI still uses.
 
-The original raw schema and generated descriptions remain in historical Git
-commits. Structural API definitions also remain in the patch and generated code.
-Do not claim that removing the bundled raw schema establishes redistribution
-permission; see [provenance](SPECIFICATION_PROVENANCE.md).
+The public history excludes the original bundled schema and copied generated
+descriptions; the original development history is retained in a private backup.
+Structural API definitions remain in the patch and generated code; see
+[provenance](SPECIFICATION_PROVENANCE.md).
