@@ -1,7 +1,7 @@
 # Public preview publication checklist
 
-The intended preview is `v0.3.0-rc.1`. This checklist records work still needed;
-it does not announce a published release.
+The first public preview is `v0.3.0-rc.1`. This document records launch checks
+and follow-up maintenance.
 
 ## Publication gate
 
@@ -34,10 +34,10 @@ notices, client regeneration, six-target snapshot packaging and Homebrew formula
 validation passed before publication preparation. Native hosted CI results must
 be checked separately.
 
-Gitleaks v8.30.1 scanned all reachable Git refs (98 commits) and the working tree.
-The reported basic-auth findings were upstream/documentation examples using
-placeholder usernames, passwords or client credentials. No real credential was
-identified. Automated secret scanning cannot guarantee absence of secrets.
+Gitleaks v8.30.1 scanned the cleaned history across all candidate refs (105
+commits) with no findings. Old GitHub PR refs and private-era releases remain
+in the separate private archive; the new public repository received only cleaned
+`main` history. Automated secret scanning cannot guarantee absence of secrets.
 
 ## Follow-up maintenance
 

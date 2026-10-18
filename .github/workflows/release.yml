@@ -60,13 +60,28 @@ jobs:
       contents: read
       actions: read
     steps:
+      - name: Check automatic tap publishing credentials
+        id: tap
+        shell: bash
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -n "$TAP_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tap token is not configured. Publish the verified homebrew-formula artifact using maintainer access."
+          fi
+
       - name: Retrieve verified Homebrew formula
+        if: steps.tap.outputs.enabled == 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: homebrew-formula-${{ github.ref_name }}
           path: homebrew-formula
 
       - name: Check out Homebrew tap
+        if: steps.tap.outputs.enabled == 'true'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ${{ vars.HOMEBREW_TAP_REPOSITORY || 'bitbucket-cli/homebrew-tap' }}
@@ -76,6 +91,7 @@ jobs:
           persist-credentials: true
 
       - name: Update Homebrew formula
+        if: steps.tap.outputs.enabled == 'true'
         shell: bash
         run: |
           set -euo pipefail

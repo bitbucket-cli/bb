@@ -53,9 +53,8 @@ overall CLI errors and usage messages remain on stderr.
 
 ## Installation
 
-The planned public preview is **v0.3.0-rc.1**; it has not been published yet.
-The installation commands and release link below are prepared for that preview
-and will work after publication. See [draft preview release notes](RELEASE_NOTES.md).
+The public preview is **v0.3.0-rc.1**. See the
+[preview release notes](RELEASE_NOTES.md) for changes and known limitations.
 
 ### Homebrew (macOS / Linux)
 

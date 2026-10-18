@@ -1,7 +1,4 @@
-# v0.3.0-rc.1 — Public preview (draft)
-
-This release is planned and unpublished. Commands and asset links below become
-available after publication.
+# v0.3.0-rc.1 — Public preview
 
 `bb` brings Bitbucket Cloud repositories, pull requests, pipelines, issues,
 workspaces and related resources to the terminal. This release candidate opens
@@ -15,7 +12,7 @@ go install github.com/bitbucket-cli/bb/cmd/bb@v0.3.0-rc.1
 ```
 
 Prebuilt archives for Linux, macOS and Windows (amd64 and arm64), plus Linux
-`.deb` and `.rpm` packages, will be available on the
+`.deb` and `.rpm` packages, are available on the
 [preview release](https://github.com/bitbucket-cli/bb/releases/tag/v0.3.0-rc.1).
 Choose the method appropriate for your platform. Archives and packages include
 third-party licence notices; `checksums.txt` covers the release artifacts.
