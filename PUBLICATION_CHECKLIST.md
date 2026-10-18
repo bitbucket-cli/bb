@@ -11,6 +11,27 @@ and follow-up maintenance.
   compatibility definitions remain distributed. See
   [generation provenance](SPECIFICATION_PROVENANCE.md).
 
+## First launch evidence (2026-10-18)
+
+- Created the clean public repository with `setup work init bb --org bitbucket-cli
+  --public`; the working checkout is `/home/tom/own/bb`. The original repository
+  remains private at `bitbucket-cli/bb-private-archive` with old PRs and releases.
+- Public refs contain cleaned `main` and `v0.3.0-rc.1` only; the removed schema and
+  an old unclean commit both return anonymous HTTP 404 on the new repository.
+- Hosted CI passed on release commit `cf17ec2`, including Linux race/coverage,
+  lint, vulnerability checks, and macOS/Windows native smoke tests.
+- Published the prerelease and 11 assets with checksum-verified GoReleaser
+  v2.18.1 locally after the tag workflow remained queued. GitHub returned HTTP
+  502 for cancellation requests; recheck run `39082959226` and compare checksums
+  if it eventually executes. The release workflow remains enabled.
+- Published the verified formula in tap commit `4956681`. Linux Homebrew install
+  and `brew test bitbucket-cli/tap/bb` passed; the binary reports `0.3.0-rc.1`.
+  An actual macOS Homebrew installation remains unverified.
+- Public `go install github.com/bitbucket-cli/bb/cmd/bb@v0.3.0-rc.1` succeeded.
+- The new repository has no `HOMEBREW_TAP_GITHUB_TOKEN`. Automatic tap publishing
+  skips explicitly until configured; verified formula artifacts can be published
+  with maintainer access, as for this release.
+
 ## Launch sequence
 
 1. Verify the cleaned public history and remove old private-era refs/artifacts
