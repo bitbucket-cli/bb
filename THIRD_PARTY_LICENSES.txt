@@ -6,7 +6,7 @@ and notices shipped with its vendored dependencies. Extra upstream notices may
 cover files not linked into bb. The project licence is distributed separately.
 
 ==============================================================================
-Go runtime go1.26.9 — LICENSE
+Go runtime go1.26.10 — LICENSE
 ==============================================================================
 Copyright 2009 The Go Authors.
 
@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-Go runtime go1.26.9 — PATENTS
+Go runtime go1.26.10 — PATENTS
 ==============================================================================
 Additional IP Rights Grant (Patents)
 
