@@ -153,7 +153,7 @@ func init() {
 	prCreateCmd.Flags().StringSliceVarP(&prReviewers, "reviewer", "r", nil, "Reviewers, by display name/nickname substring or {uuid} (can be specified multiple times)")
 	prCreateCmd.Flags().BoolP("interactive", "i", false, "Prompt for the title (and other fields) interactively")
 	prCreateCmd.Flags().BoolVar(&prDraft, "draft", false, "Create the pull request as a draft")
-	prCreateCmd.Flags().BoolVar(&prCloseSource, "close-source-branch", false, "Delete the source branch when the pull request is merged")
+	prCreateCmd.Flags().BoolVar(&prCloseSource, "close-source-branch", true, "Delete the source branch when the pull request is merged (use =false to keep it)")
 	prMergeCmd.Flags().StringVar(&prMergeStrategy, "strategy", "", "Merge strategy: merge_commit, squash, fast_forward, squash_fast_forward, rebase_fast_forward, rebase_merge (default: the repo's default)")
 	prMergeCmd.Flags().StringVarP(&prMergeMessage, "message", "m", "", "Commit message for the merge commit")
 	prMergeCmd.Flags().BoolVar(&prMergeCloseSource, "close-source-branch", false, "Delete the source branch after merging (use =false to keep it; default: the PR's setting)")
@@ -436,9 +436,9 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 	if prDraft {
 		prRequest["draft"] = true
 	}
-	if prCloseSource {
-		prRequest["close_source_branch"] = true
-	}
+	// Always sent: Bitbucket's API defaults to keeping the source branch, and a
+	// branch left behind after a squash merge strands any PR stacked on it.
+	prRequest["close_source_branch"] = prCloseSource
 
 	// Bitbucket's create-pull-request API does not auto-apply the repo's
 	// default reviewers (that only happens via the web UI), so fetch and

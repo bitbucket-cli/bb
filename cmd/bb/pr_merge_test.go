@@ -97,7 +97,7 @@ func TestRunPRApprove_Remove(t *testing.T) {
 func TestRunPRCreate_DraftCloseSource(t *testing.T) {
 	defer resetPRMocks()
 	prTitle, prSource, prDest, prDraft, prCloseSource = "T", "feature", "main", true, true
-	defer func() { prTitle, prSource, prDest, prDraft, prCloseSource = "", "", "", false, false }()
+	defer func() { prTitle, prSource, prDest, prDraft, prCloseSource = "", "", "", false, true }()
 
 	var body map[string]interface{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -115,5 +115,36 @@ func TestRunPRCreate_DraftCloseSource(t *testing.T) {
 	}
 	if body["draft"] != true || body["close_source_branch"] != true {
 		t.Errorf("create body = %v", body)
+	}
+}
+
+func TestPRCreate_CloseSourceDefaultsTrue(t *testing.T) {
+	f := prCreateCmd.Flags().Lookup("close-source-branch")
+	if f == nil || f.DefValue != "true" {
+		t.Fatalf("close-source-branch default = %v, want true", f)
+	}
+}
+
+func TestRunPRCreate_KeepSourceBranch(t *testing.T) {
+	defer resetPRMocks()
+	prTitle, prSource, prDest, prCloseSource = "T", "feature", "main", false
+	defer func() { prTitle, prSource, prDest, prCloseSource = "", "", "", true }()
+
+	var body map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			json.NewDecoder(r.Body).Decode(&body)
+			w.WriteHeader(http.StatusCreated)
+		}
+		w.Write([]byte(`{"id": 1, "links": {"html": {"href": "x"}}}`))
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+	if err := runPRCreate(prCreateCmd, []string{"myws/myrepo"}); err != nil {
+		t.Fatalf("runPRCreate: %v", err)
+	}
+	if v, ok := body["close_source_branch"]; !ok || v != false {
+		t.Errorf("close_source_branch = %v (present %v), want an explicit false", v, ok)
 	}
 }

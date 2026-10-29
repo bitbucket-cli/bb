@@ -220,7 +220,7 @@ bb pr create myworkspace/myrepo \
   --reviewer johndoe
 
 # Create a draft that deletes its source branch on merge
-bb pr create --title "WIP" --draft --close-source-branch
+bb pr create --title "WIP" --draft --close-source-branch=false   # keep the branch after merge (deleted by default)
 
 # Retarget a PR, or take it out of draft
 bb pr edit myworkspace/myrepo 123 --dest develop
