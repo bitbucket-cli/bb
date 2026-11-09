@@ -686,6 +686,7 @@ bb pr create myworkspace/myrepo -t "Title"   # source defaults to current branch
 bb pr comment myworkspace/myrepo 42 -b "nit" --path main.go --line 10
 bb pr request-changes myworkspace/myrepo 42 --comment "please fix the tests"
 bb pr threads myworkspace/myrepo 42          # comments as nested threads, with IDs
+bb pr activity myworkspace/myrepo 42 --csv   # approvals, change requests, head moves; STALE = approval predates head
 bb pr comment myworkspace/myrepo 42 -b "done" --reply-to 1234
 bb pr comment-edit myworkspace/myrepo 42 1234 -b "corrected text"
 bb pr comment-delete myworkspace/myrepo 42 1234

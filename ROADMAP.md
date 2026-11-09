@@ -114,6 +114,7 @@ in [CONTRIBUTING.md](CONTRIBUTING.md).
 #### Code Review Features
 - [x] Inline comments support for PR reviews — `bb pr comment --path <file> --line <n>`
 - [x] PR review threads navigation — `bb pr threads` (comments nested by reply, inline anchored)
+- [x] PR activity history — `bb pr activity` (approvals, changes requested, updates with head commit; flags reviews made stale by a later push)
 - [x] Request changes with comment — `bb pr request-changes [--remove] [--comment]`
 - [x] PR templates support — `bb pr create` defaults the description from `.bitbucket/`, root, `.github/`, or `docs/` `pull_request_template.md`
 

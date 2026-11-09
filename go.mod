@@ -2,7 +2,7 @@ module github.com/bitbucket-cli/bb
 
 go 1.24.0
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/manifoldco/promptui v0.9.0

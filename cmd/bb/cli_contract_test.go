@@ -123,6 +123,7 @@ func TestCLIEmptyLists(t *testing.T) {
 		{prCommentsCmd, []string{"ws/repo", "5"}, "ID"},
 		{issueCommentsCmd, []string{"ws/repo", "5"}, "ID"},
 		{prThreadsCmd, []string{"ws/repo", "5"}, "ID"},
+		{prActivityCmd, []string{"ws/repo", "5"}, "DATE"},
 	} {
 		for _, format := range []string{"json", "csv"} {
 			t.Run(tc.cmd.Name()+"/"+tc.header+"/"+format, func(t *testing.T) {
