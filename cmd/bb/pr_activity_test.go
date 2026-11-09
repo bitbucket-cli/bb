@@ -16,17 +16,19 @@ import (
 
 // Newest first, as Bitbucket returns it: opened at aaa, approved by Ann,
 // changes requested by Bob, pushed bbb, approved by Bob, merged at bbb.
+// Updates use the user and status fields shown in Bitbucket's activity example:
+// https://confluence.atlassian.com/bitbucket/pullrequests-resource-423626332.html
 const prActivityPage1 = `{"values":[
-	{"update":{"date":"2026-01-05T10:00:00.000000+00:00","state":"MERGED","author":{"display_name":"Tom","uuid":"{t}"},"source":{"commit":{"hash":"bbb"}}},"pull_request":{"id":5}},
+	{"update":{"date":"2026-01-05T10:00:00.000000+00:00","status":"merged","user":{"display_name":"Tom","uuid":"{t}"},"source":{"commit":{"hash":"bbb"}}},"pull_request":{"id":5}},
 	{"approval":{"date":"2026-01-04T10:00:00.000000+00:00","user":{"display_name":"Bob","uuid":"{b}"}},"pull_request":{"id":5}},
-	{"update":{"date":"2026-01-03T10:00:00.000000+00:00","state":"OPEN","author":{"display_name":"Tom","uuid":"{t}"},"source":{"commit":{"hash":"bbb"}}},"pull_request":{"id":5}}
+	{"update":{"date":"2026-01-03T10:00:00.000000+00:00","status":"open","user":{"display_name":"Tom","uuid":"{t}"},"source":{"commit":{"hash":"bbb"}}},"pull_request":{"id":5}}
 ],"next":"%s/page2"}`
 
 const prActivityPage2 = `{"values":[
 	{"comment":{"id":9,"created_on":"2026-01-02T12:00:00+00:00","user":{"display_name":"Bob"},"content":{"raw":"please fix\nmore"}},"pull_request":{"id":5}},
 	{"changes_requested":{"date":"2026-01-02T11:00:00.000000+00:00","user":{"display_name":"Bob","uuid":"{b}"}},"pull_request":{"id":5}},
 	{"approval":{"date":"2026-01-02T10:00:00.000000+00:00","user":{"display_name":"Ann","uuid":"{a}"}},"pull_request":{"id":5}},
-	{"update":{"date":"2026-01-01T10:00:00.000000+00:00","state":"OPEN","author":{"display_name":"Tom","uuid":"{t}"},"source":{"commit":{"hash":"aaa"}}},"pull_request":{"id":5}}
+	{"update":{"date":"2026-01-01T10:00:00.000000+00:00","status":"open","user":{"display_name":"Tom","uuid":"{t}"},"source":{"commit":{"hash":"aaa"}}},"pull_request":{"id":5}}
 ]}`
 
 func prActivityServer(t *testing.T) *httptest.Server {
@@ -90,10 +92,13 @@ func TestRunPRActivity_JSONAcrossPages(t *testing.T) {
 	if events[1]["actor_uuid"] != "{a}" || events[1]["date"] != "2026-01-02T10:00:00.000000+00:00" {
 		t.Errorf("approval lost actor or timestamp: %v", events[1])
 	}
+	if events[0]["actor_uuid"] != "{t}" {
+		t.Errorf("update lost actor UUID: %v", events[0])
+	}
 	if events[3]["comment_id"] != float64(9) || events[3]["detail"] != "please fix" {
 		t.Errorf("comment = %v", events[3])
 	}
-	if events[6]["state"] != "MERGED" {
+	if events[6]["state"] != "merged" {
 		t.Errorf("merge update = %v", events[6])
 	}
 }
@@ -121,7 +126,7 @@ func TestRunPRActivity_CSV(t *testing.T) {
 	if strings.Join(rows[2][1:], ",") != "approval,Ann,aaa,,true," {
 		t.Errorf("stale approval row = %v", rows[2])
 	}
-	if strings.Join(rows[5][1:], ",") != "update,Tom,bbb,true,,OPEN" {
+	if strings.Join(rows[5][1:], ",") != "update,Tom,bbb,true,,open" {
 		t.Errorf("head move row = %v", rows[5])
 	}
 }

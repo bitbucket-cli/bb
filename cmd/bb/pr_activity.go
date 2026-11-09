@@ -52,8 +52,8 @@ type prActivityEntry struct {
 	ChangesRequested *prActivityReview `json:"changes_requested"`
 	Update           *struct {
 		Date   string         `json:"date"`
-		State  string         `json:"state"`
-		Author prActivityUser `json:"author"`
+		Status string         `json:"status"`
+		User   prActivityUser `json:"user"`
 		Source struct {
 			Commit *struct {
 				Hash string `json:"hash"`
@@ -152,7 +152,7 @@ func buildPRActivity(entries []prActivityEntry) []prActivityEvent {
 			e = reviewEvent("changes_requested", entry.ChangesRequested)
 		case entry.Update != nil:
 			u := entry.Update
-			e = prActivityEvent{Date: u.Date, Event: "update", Actor: u.Author.DisplayName, ActorUUID: u.Author.UUID, State: u.State}
+			e = prActivityEvent{Date: u.Date, Event: "update", Actor: u.User.DisplayName, ActorUUID: u.User.UUID, State: u.Status}
 			if u.Source.Commit != nil {
 				e.Commit = u.Source.Commit.Hash
 			}
