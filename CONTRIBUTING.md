@@ -107,6 +107,29 @@ actual published tag before users can install them. The generator rejects
 invalid versions/repository names, missing or duplicate checksum entries and
 archive checksum mismatches. No local validation command publishes a release.
 
+The release workflow also generates a Scoop manifest from the Windows amd64
+and arm64 ZIPs, verifies their checksums against the archives, and checks that
+each ZIP contains `bb.exe` at its root. It saves `scoop-manifest-<tag>` as a
+workflow artifact. To publish it automatically, create a public
+`bitbucket-cli/scoop-bucket` repository with a default branch and grant a token
+write access to it through the `SCOOP_BUCKET_GITHUB_TOKEN` secret. The workflow
+creates `bucket/bb.json` on first publish. Set
+`SCOOP_BUCKET_REPOSITORY` only if the bucket lives elsewhere. The publishing
+job runs only for public source releases and changes only `bb.json` in the
+bucket. Without the token, it leaves the verified artifact for a maintainer to
+publish manually. A failed bucket job can be rerun during artifact retention
+without rebuilding or republishing the release.
+
+To inspect a local manifest after a GoReleaser snapshot:
+
+```bash
+go run ./scripts/scoop -version v0.3.0-rc.1 -repository bitbucket-cli/bb
+go test ./scripts/scoop
+```
+
+The version flag must match the intended release tag. Snapshot manifests use
+that tag's release URLs, which become installable once the tag is published.
+
 
 ## Public preview releases
 
