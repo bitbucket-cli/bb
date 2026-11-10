@@ -691,6 +691,9 @@ bb pr comment myworkspace/myrepo 42 -b "done" --reply-to 1234
 bb pr comment-edit myworkspace/myrepo 42 1234 -b "corrected text"
 bb pr comment-delete myworkspace/myrepo 42 1234
 bb pr metrics myworkspace/myrepo             # avg/median time to merge
+bb pr list myworkspace/myrepo --json --meta   # query, pagination, count and items
+bb pr list myworkspace --all --json --meta    # your PRs across every repo in the workspace
+bb pr list myworkspace --all --state ALL --created-since 36h --json --meta
 bb pr bulk approve myworkspace/myrepo 1 2 3  # runs concurrently
 ```
 
@@ -714,6 +717,26 @@ explicit output flags override that default:
 bb pr list myworkspace/myrepo --csv > prs.csv
 bb issue list myworkspace/myrepo --json | jq '.[].title'
 ```
+
+`bb pr list` shows the effective scope, author and state filters, draft filter,
+result count, pages fetched and completion status in table output. For scripts,
+`bb pr list --json --meta` wraps the usual items array in an object with
+`query`, `pagination`, `count` and `summary`; plain `--json` stays an array.
+The summary counts states, repositories, drafts and review decisions. Review
+decisions come from PR participants, including people who were not assigned as
+reviewers. Missing participant or draft data is reported as `unknown` instead
+of a false zero. PR list rows also include review decision and comment count
+when Bitbucket supplies them. `api_total`
+appears only when Bitbucket supplies a total. `draft_filter: "all"` means the
+query did not exclude drafts. A failed later page returns an error without
+printing a partial list. CSV retains its existing rows and headers; use JSON
+with `--meta` when query evidence is needed.
+
+`--state ALL` selects open, merged and declined PRs. `--created-since` and
+`--updated-since` accept an RFC3339 timestamp with timezone or a positive Go
+duration such as `36h`. Relative durations are resolved when the command runs;
+timestamps are normalized to UTC. Both bounds are inclusive and applied by
+Bitbucket before pagination. The resolved bounds appear in the query metadata.
 
 ## Contributing
 

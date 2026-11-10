@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bitbucket-cli/bb/generated/bitbucket"
 	"github.com/bitbucket-cli/bb/internal/interactive"
 	"github.com/bitbucket-cli/bb/internal/output"
 	api "github.com/bitbucket-cli/bb/pkg/bitbucket"
-	bbpr "github.com/bitbucket-cli/bb/pkg/pr"
 	"github.com/spf13/cobra"
 )
 
@@ -141,10 +142,13 @@ Use -i flag for interactive selection when pr-number is omitted.`,
 }
 
 func init() {
-	prListCmd.Flags().StringVarP(&prState, "state", "s", "OPEN", "Filter by state (OPEN, MERGED, DECLINED)")
+	prListCmd.Flags().StringVarP(&prState, "state", "s", "OPEN", "Filter by state (OPEN, MERGED, DECLINED, ALL)")
 	prListCmd.Flags().BoolVar(&prAll, "all", false, "List across all repos in the workspace (uses the workspace endpoint); defaults to your PRs")
 	prListCmd.Flags().StringVar(&prUser, "user", "", "With --all, list PRs for this user (UUID or account_id) instead of yourself")
 	prListCmd.Flags().BoolVar(&prLinks, "links", false, "Include a LINK column with each PR's URL (always present in --json)")
+	prListCmd.Flags().BoolVar(&prMeta, "meta", false, "With --json, include query and pagination metadata in an object instead of a bare array")
+	prListCmd.Flags().StringVar(&prCreatedSince, "created-since", "", "PRs created on/after RFC3339 timestamp or within a duration (e.g. 36h)")
+	prListCmd.Flags().StringVar(&prUpdatedSince, "updated-since", "", "PRs updated on/after RFC3339 timestamp or within a duration (e.g. 36h)")
 
 	prCreateCmd.Flags().StringVarP(&prTitle, "title", "t", "", "Pull request title (required)")
 	prCreateCmd.Flags().StringVarP(&prBody, "body", "b", "", "Pull request description")
@@ -213,46 +217,26 @@ func runPRList(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 
-	prs, err := bbpr.List(ctx, repoCtx.Workspace, repoCtx.RepoSlug, prState)
+	client, err := prNewAPIClient()
 	if err != nil {
 		return err
 	}
-
-	if len(prs) == 0 && output.CurrentFormat == output.FormatTable {
-		output.Info("No pull requests found")
-		return nil
+	params, state, created, updated, err := prListParams(time.Now())
+	if err != nil {
+		return err
 	}
-
-	headers := []string{"#", "TITLE", "AUTHOR", "BRANCH", "STATE"}
-	if prLinks {
-		headers = append(headers, "LINK")
+	path := "/repositories/" + url.PathEscape(repoCtx.Workspace) + "/" + url.PathEscape(repoCtx.RepoSlug) + "/pullrequests?" + params.Encode()
+	resp, err := client.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to list pull requests: %w", err)
 	}
-	var rows [][]string
-	var jsonData []map[string]interface{}
-
-	for _, pr := range prs {
-		row := []string{
-			strconv.Itoa(pr.ID),
-			output.Truncate(pr.Title, 50),
-			pr.Author,
-			pr.Branch,
-			pr.State,
-		}
-		if prLinks {
-			row = append(row, pr.URL)
-		}
-		rows = append(rows, row)
-		jsonData = append(jsonData, map[string]interface{}{
-			"id":     pr.ID,
-			"title":  pr.Title,
-			"author": pr.Author,
-			"branch": pr.Branch,
-			"state":  pr.State,
-			"url":    pr.URL,
-		})
+	defer resp.Body.Close()
+	prs, stats, err := fetchAllPagesWithStats[wsPR](ctx, client, resp)
+	if err != nil {
+		return err
 	}
-
-	return output.Print(headers, rows, jsonData)
+	query := prListQuery{Scope: "repository", Workspace: repoCtx.Workspace, Repository: repoCtx.RepoSlug, Author: "any", State: state, DraftFilter: "all", CreatedSince: created, UpdatedSince: updated}
+	return renderPRList(prs, query, stats, true)
 }
 
 func runPRView(cmd *cobra.Command, args []string) error {
