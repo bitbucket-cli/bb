@@ -125,6 +125,36 @@ func TestPRCreate_CloseSourceDefaultsTrue(t *testing.T) {
 	}
 }
 
+func TestRunPRCreate_DefaultClosesSourceBranch(t *testing.T) {
+	defer resetPRMocks()
+	oldTitle, oldSource, oldDest, oldCloseSource := prTitle, prSource, prDest, prCloseSource
+	defer func() { prTitle, prSource, prDest, prCloseSource = oldTitle, oldSource, oldDest, oldCloseSource }()
+	prTitle, prSource, prDest = "T", "feature", "main"
+	if !prCloseSource {
+		t.Fatal("close-source-branch should default to true")
+	}
+
+	var body map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode create request: %v", err)
+			}
+			w.WriteHeader(http.StatusCreated)
+		}
+		_, _ = w.Write([]byte(`{"id": 1, "links": {"html": {"href": "x"}}}`))
+	}))
+	defer server.Close()
+
+	prNewAPIClient = mockAPIClientFactory(server)
+	if err := runPRCreate(prCreateCmd, []string{"myws/myrepo"}); err != nil {
+		t.Fatalf("runPRCreate: %v", err)
+	}
+	if v, ok := body["close_source_branch"]; !ok || v != true {
+		t.Errorf("close_source_branch = %v (present %v), want an explicit true", v, ok)
+	}
+}
+
 func TestRunPRCreate_KeepSourceBranch(t *testing.T) {
 	defer resetPRMocks()
 	prTitle, prSource, prDest, prCloseSource = "T", "feature", "main", false

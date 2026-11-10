@@ -436,8 +436,8 @@ func runPRCreate(cmd *cobra.Command, args []string) error {
 	if prDraft {
 		prRequest["draft"] = true
 	}
-	// Always sent: Bitbucket's API defaults to keeping the source branch, and a
-	// branch left behind after a squash merge strands any PR stacked on it.
+	// Always send the CLI default or the user's explicit override; omitting the
+	// field would let Bitbucket's repository setting determine this behavior.
 	prRequest["close_source_branch"] = prCloseSource
 
 	// Bitbucket's create-pull-request API does not auto-apply the repo's
