@@ -172,7 +172,7 @@ in [CONTRIBUTING.md](CONTRIBUTING.md).
 - [x] Cross-platform binaries (Linux, macOS, Windows) — goreleaser builds amd64+arm64
 - [x] Homebrew formula — verified archive checksums feed a separate formula generator and tap job for `bitbucket-cli/homebrew-tap`; macOS/Linux amd64 and arm64 are supported
 - [x] APT/RPM packages — goreleaser nfpms (deb/rpm)
-- [ ] Scoop manifest for Windows — disabled until a scoop-bucket repository and publishing token are configured; Windows release binaries remain available
+- [ ] Scoop manifest for Windows — verified manifest generation and release artifact are prepared; public installation awaits a scoop-bucket repository and publishing token
 
 ### Performance
 - [~] Response caching — not applicable: bb is a stateless single-shot CLI; superseded by on-demand pagination + --limit
